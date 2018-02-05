@@ -1,9 +1,12 @@
 import base64
+import fcntl
 import glob
 import json
+import logging
 import os
 import shlex
 import socket
+import struct
 import subprocess
 
 from consulate import Consul
@@ -13,10 +16,48 @@ GLUU_KV_HOST = os.environ.get('GLUU_KV_HOST', 'localhost')
 GLUU_KV_PORT = os.environ.get('GLUU_KV_PORT', 8500)
 GLUU_CACHE_TYPE = os.environ.get("GLUU_CACHE_TYPE", 'IN_MEMORY')
 GLUU_REDIS_URL = os.environ.get('GLUU_REDIS_URL', 'localhost:6379')
+GLUU_LDAP_INIT = os.environ.get("GLUU_LDAP_INIT", False)
+
+GLUU_LDAP_PORT = os.environ.get("GLUU_LDAP_PORT", 1389)
+GLUU_LDAPS_PORT = os.environ.get("GLUU_LDAPS_PORT", 1636)
+GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
+GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
+GLUU_JMX_PORT = os.environ.get("GLUU_JMX_PORT", 1689)
 
 DEFAULT_ADMIN_PW_PATH = "/opt/opendj/.pw"
 
 consul = Consul(host=GLUU_KV_HOST, port=GLUU_KV_PORT)
+
+logger = logging.getLogger("entrypoint")
+logger.setLevel(logging.INFO)
+ch = logging.StreamHandler()
+fmt = logging.Formatter('%(levelname)s - %(asctime)s - %(message)s')
+ch.setFormatter(fmt)
+logger.addHandler(ch)
+
+
+def get_ip_addr(ifname):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    addr = socket.inet_ntoa(fcntl.ioctl(
+        sock.fileno(),
+        0x8915,  # SIOCGIFADDR
+        struct.pack('256s', ifname[:15])
+    )[20:24])
+    return addr
+
+
+def guess_ip_addr():
+    addr = ""
+
+    # priorities
+    for ifname in ("eth1", "eth0", "wlan0"):
+        try:
+            addr = get_ip_addr(ifname)
+        except IOError:
+            continue
+        else:
+            break
+    return addr
 
 
 def decrypt_text(encrypted_text, key):
@@ -51,13 +92,15 @@ def exec_cmd(cmd):
 
 
 def install_opendj():
-    # render opendj-setup.properties
+    logger.info("Installing OpenDJ.")
+
+    # 1) render opendj-setup.properties
     ctx = {
-        "ldap_hostname": socket.getfqdn(),
+        "ldap_hostname": guess_ip_addr(),
         "ldap_port": consul.kv.get("ldap_port"),
         "ldaps_port": consul.kv.get("ldaps_port"),
-        "ldap_jmx_port": 1689,
-        "ldap_admin_port": 4444,
+        "ldap_jmx_port": GLUU_JMX_PORT,
+        "ldap_admin_port": GLUU_ADMIN_PORT,
         "opendj_ldap_binddn": consul.kv.get("ldap_binddn"),
         "ldapPassFn": DEFAULT_ADMIN_PW_PATH,
         "ldap_backend_type": "je",
@@ -68,15 +111,23 @@ def install_opendj():
         with open("/opt/opendj/opendj-setup.properties", "wb") as fw:
             fw.write(content)
 
-    # run installer
+    # 2) run installer
     cmd = "/opt/opendj/setup --no-prompt --cli --acceptLicense " \
           "--propertiesFilePath /opt/opendj/opendj-setup.properties"
-    exec_cmd(cmd)
-    # run dsjavaproperties
+    _, err, code = exec_cmd(cmd)
+    if code:
+        logger.warn(err)
+
+    # 3) run dsjavaproperties
     exec_cmd("/opt/opendj/bin/dsjavaproperties")
+    _, err, code = exec_cmd(cmd)
+    if code != 3:
+        logger.warn(err)
 
 
 def configure_opendj():
+    logger.info("Configuring OpenDJ.")
+
     opendj_prop_name = 'global-aci:\'(targetattr!="userPassword||authPassword||debugsearchindex||changes||changeNumber||changeType||changeTime||targetDN||newRDN||newSuperior||deleteOldRDN")(version 3.0; acl "Anonymous read access"; allow (read,search,compare) userdn="ldap:///anyone";)\''
     config_mods = [
         'set-global-configuration-prop --set single-structural-objectclass-behavior:accept',
@@ -90,13 +141,23 @@ def configure_opendj():
         'set-password-policy-prop --policy-name "Default Password Policy" --set default-password-storage-scheme:"Salted SHA-512"',
         'set-global-configuration-prop --set reject-unauthenticated-requests:true',
     ]
-    hostname = socket.getfqdn()
+    hostname = guess_ip_addr()
     binddn = consul.kv.get("ldap_binddn")
 
     for config in config_mods:
-        cmd = "/opt/opendj/bin/dsconfig --trustAll --no-prompt --hostname {} " \
-              "--port 4444 --bindDN '{}' --bindPasswordFile {} {}".format(hostname, binddn, DEFAULT_ADMIN_PW_PATH, config)
-        exec_cmd(cmd)
+        cmd = " ".join([
+            "/opt/opendj/bin/dsconfig",
+            "--trustAll",
+            "--no-prompt",
+            "--hostname {}".format(hostname),
+            "--port {}".format(GLUU_ADMIN_PORT),
+            "--bindDN '{}'".format(binddn),
+            "--bindPasswordFile {}".format(DEFAULT_ADMIN_PW_PATH),
+            "{}".format(config)
+        ])
+        _, err, code = exec_cmd(cmd)
+        if code:
+            logger.warn(err)
 
 
 def export_opendj_cert():
@@ -212,6 +273,8 @@ def render_ldif():
 
 
 def import_ldif():
+    logger.info("Adding data into LDAP.")
+
     ldif_files = map(lambda x: os.path.join("/tmp", x), [
         'base.ldif',
         'appliance.ldif',
@@ -233,20 +296,24 @@ def import_ldif():
     for ldif_file_fn in ldif_files:
         cmd = " ".join([
             "/opt/opendj/bin/ldapmodify",
-            "--hostname", socket.getfqdn(),
-            '--port', '4444',
-            '--bindDN', '"%s"' % consul.kv.get("ldap_binddn"),
-            '-j', DEFAULT_ADMIN_PW_PATH,
-            '--filename', ldif_file_fn,
-            '--trustAll',
-            '--useSSL',
-            '--defaultAdd',
-            '--continueOnError',
+            "--hostname {}".format(guess_ip_addr()),
+            "--port {}".format(GLUU_ADMIN_PORT),
+            "--bindDN '{}'".format(consul.kv.get("ldap_binddn")),
+            "-j {}".format(DEFAULT_ADMIN_PW_PATH),
+            "--filename {}".format(ldif_file_fn),
+            "--trustAll",
+            "--useSSL",
+            "--defaultAdd",
+            "--continueOnError",
         ])
-        exec_cmd(cmd)
+        _, err, code = exec_cmd(cmd)
+        if code:
+            logger.warn(err)
 
 
 def index_opendj(backend, data):
+    logger.info("Creating indexes for {} backend.".format(backend))
+
     for attr_map in data:
         attr_name = attr_map['attribute']
 
@@ -256,23 +323,131 @@ def index_opendj(backend, data):
                     continue
 
                 index_cmd = " ".join([
-                    '/opt/opendj/bin/dsconfig',
-                    'create-backend-index',
-                    '--backend-name', backend,
-                    '--type', 'generic',
-                    '--index-name', attr_name,
-                    '--set', 'index-type:%s' % index_type,
-                    '--set', 'index-entry-limit:4000',
-                    '--hostName', socket.getfqdn(),
-                    '--port', '4444',
-                    '--bindDN', '"%s"' % consul.kv.get("ldap_binddn"),
-                    '-j', DEFAULT_ADMIN_PW_PATH,
-                    '--trustAll', '--noPropertiesFile', '--no-prompt',
+                    "/opt/opendj/bin/dsconfig",
+                    "create-backend-index",
+                    "--backend-name {}".format(backend),
+                    "--type generic",
+                    "--index-name {}".format(attr_name),
+                    "--set index-type:{}".format(index_type),
+                    "--set index-entry-limit:4000",
+                    "--hostName {}".format(guess_ip_addr()),
+                    "--port {}".format(GLUU_ADMIN_PORT),
+                    "--bindDN '{}'".format(consul.kv.get("ldap_binddn")),
+                    "-j {}".format(DEFAULT_ADMIN_PW_PATH),
+                    "--trustAll",
+                    "--noPropertiesFile",
+                    "--no-prompt",
                 ])
-                exec_cmd(index_cmd)
+                _, err, code = exec_cmd(index_cmd)
+                if code:
+                    logger.warn(err)
+
+
+def as_boolean(val, default=False):
+    truthy = set(('t', 'T', 'true', 'True', 'TRUE', '1', 1, True))
+    falsy = set(('f', 'F', 'false', 'False', 'FALSE', '0', 0, False))
+
+    if val in truthy:
+        return True
+    if val in falsy:
+        return False
+    return default
+
+
+def register_server(server):
+    consul.kv.set("ldap_servers/{}:{}".format(server["host"], server["ldaps_port"]), server)
+
+
+def replicate_from(peer, server):
+    passwd = decrypt_text(consul.kv.get("encoded_ox_ldap_pw"),
+                          consul.kv.get("encoded_salt"))
+
+    for base_dn in ["o=gluu", "o=site"]:
+        logger.info("Enabling OpenDJ replication of {} between {}:{} and {}:{}.".format(
+            base_dn, peer["host"], peer["ldaps_port"], server["host"], server["ldaps_port"],
+        ))
+
+        enable_cmd = " ".join([
+            "/opt/opendj/bin/dsreplication",
+            "enable",
+            "--host1 {}".format(peer["host"]),
+            "--port1 {}".format(peer["admin_port"]),
+            "--bindDN1 '{}'".format(consul.kv.get("ldap_binddn")),
+            "--bindPassword1 {}".format(passwd),
+            "--replicationPort1 {}".format(peer["replication_port"]),
+            "--secureReplication1",
+            "--host2 {}".format(server["host"]),
+            "--port2 {}".format(server["admin_port"]),
+            "--bindDN2 '{}'".format(consul.kv.get("ldap_binddn")),
+            "--bindPassword2 {}".format(passwd),
+            "--secureReplication2",
+            "--adminUID admin",
+            "--adminPassword {}".format(passwd),
+            "--baseDN '{}'".format(base_dn),
+            "-X",
+            "-n",
+            "-Q",
+            "--trustAll",
+        ])
+        _, err, code = exec_cmd(enable_cmd)
+        if code:
+            logger.warn(err.strip())
+
+        logger.info("Initializing OpenDJ replication of {} between {}:{} and {}:{}.".format(
+            base_dn, peer["host"], peer["ldaps_port"], server["host"], server["ldaps_port"],
+        ))
+
+        init_cmd = " ".join([
+            "/opt/opendj/bin/dsreplication",
+            "initialize",
+            "--baseDN '{}'".format(base_dn),
+            "--adminUID admin",
+            "--adminPassword {}".format(passwd),
+            "--hostSource {}".format(peer["host"]),
+            "--portSource {}".format(peer["admin_port"]),
+            "--hostDestination {}".format(server["host"]),
+            "--portDestination {}".format(server["admin_port"]),
+            "-X",
+            "-n",
+            "-Q",
+            "--trustAll",
+        ])
+        _, err, code = exec_cmd(init_cmd)
+        if code:
+            logger.warn(err.strip())
+
+
+def check_connection(host, port):
+    logger.info("Checking connection to {}:{}.".format(host, port))
+
+    passwd = decrypt_text(consul.kv.get("encoded_ox_ldap_pw"),
+                          consul.kv.get("encoded_salt"))
+
+    cmd = " ".join([
+        "/opt/opendj/bin/ldapsearch",
+        "--hostname {}".format(host),
+        "--port {}".format(port),
+        "--baseDN ''",
+        "--bindDN '{}'".format(consul.kv.get("ldap_binddn")),
+        "--bindPassword {}".format(passwd),
+        "-Z",
+        "-X",
+        "--searchScope base",
+        "'(objectclass=*)' 1.1",
+    ])
+    _, _, code = exec_cmd(cmd)
+    return code == 0
 
 
 def main():
+    server = {
+        "host": guess_ip_addr(),
+        "ldap_port": GLUU_LDAP_PORT,
+        "ldaps_port": GLUU_LDAPS_PORT,
+        "admin_port": GLUU_ADMIN_PORT,
+        "replication_port": GLUU_REPLICATION_PORT,
+    }
+
     # the plain-text admin password is not saved in KV storage,
     # but we have the encoded one
     with open(DEFAULT_ADMIN_PW_PATH, "wb") as fw:
@@ -293,12 +468,30 @@ def main():
         index_opendj("userRoot", data)
         index_opendj("site", data)
 
-    # @TODO: check whether we need to import data or replicate from other server
-    render_ldif()
-    import_ldif()
+    if as_boolean(GLUU_LDAP_INIT):
+        render_ldif()
+        import_ldif()
+    else:
+        peers = {
+            k: json.loads(v) for k, v in consul.kv.find("ldap_servers", {}).iteritems()
+            if k != "ldap_servers/{}:{}".format(server["host"], server["ldaps_port"])
+        }
+
+        for idx, peer in peers.iteritems():
+            # if peer is not active, skip and try another one
+            if not check_connection(peer["host"], peer["ldaps_port"]):
+                continue
+
+            # replicate from active server, no need to replicate from remaining peer
+            replicate_from(peer, server)
+            break
+
+    # register current server for discovery
+    register_server(server)
 
     try:
         os.unlink(DEFAULT_ADMIN_PW_PATH)
+        os.unlink("/opt/opendj/opendj-setup.properties")
     except OSError:
         pass
 
