@@ -139,7 +139,7 @@ def configure_opendj():
         'set-access-control-handler-prop --remove {}'.format(opendj_prop_name),
         'set-global-configuration-prop --set reject-unauthenticated-requests:true',
         'set-password-policy-prop --policy-name "Default Password Policy" --set default-password-storage-scheme:"Salted SHA-512"',
-        'set-global-configuration-prop --set reject-unauthenticated-requests:true',
+        'set-crypto-manager-prop --set ssl-encryption:true',
     ]
     hostname = guess_ip_addr()
     binddn = consul.kv.get("ldap_binddn")
