@@ -17,6 +17,8 @@ GLUU_KV_PORT = os.environ.get('GLUU_KV_PORT', 8500)
 GLUU_CACHE_TYPE = os.environ.get("GLUU_CACHE_TYPE", 'IN_MEMORY')
 GLUU_REDIS_URL = os.environ.get('GLUU_REDIS_URL', 'localhost:6379')
 GLUU_LDAP_INIT = os.environ.get("GLUU_LDAP_INIT", False)
+GLUU_LDAP_INIT_HOST = os.environ.get('GLUU_LDAP_INIT_HOST', 'localhost')
+GLUU_LDAP_INIT_PORT = os.environ.get("GLUU_LDAP_INIT_PORT", 1636)
 
 GLUU_LDAP_PORT = os.environ.get("GLUU_LDAP_PORT", 1389)
 GLUU_LDAPS_PORT = os.environ.get("GLUU_LDAPS_PORT", 1636)
@@ -220,7 +222,6 @@ def render_ldif():
         # has no variables
 
         # appliance.ldif
-        'ldap_use_ssl': consul.kv.get('ldap_use_ssl'),
         'cache_provider_type': GLUU_CACHE_TYPE,
         'redis_url': GLUU_REDIS_URL,
         # oxpassport-config.ldif
@@ -258,7 +259,7 @@ def render_ldif():
         'oxtrust_cache_refresh_base64': consul.kv.get('oxtrust_cache_refresh_base64'),
         'oxtrust_import_person_base64': consul.kv.get('oxtrust_import_person_base64'),
         'oxidp_config_base64': consul.kv.get('oxidp_config_base64'),
-        'oxcas_config_base64': consul.kv.get('oxcas_config_base64'),
+        # 'oxcas_config_base64': consul.kv.get('oxcas_config_base64'),
         'oxasimba_config_base64': consul.kv.get('oxasimba_config_base64'),
 
         # passport.ldif
@@ -306,6 +307,10 @@ def render_ldif():
         "uma_rpt_policy_umaclientauthzrptpolicy": consul.kv.get("uma_rpt_policy_umaclientauthzrptpolicy"),
         "person_authentication_samlpassportauthenticator": consul.kv.get("person_authentication_samlpassportauthenticator"),
         "consent_gathering_consentgatheringsample": consul.kv.get("consent_gathering_consentgatheringsample"),
+
+        # scripts_cred_manager
+        "person_authentication_credmanager": consul.kv.get("person_authentication_credmanager"),
+        "client_registration_credmanager": consul.kv.get("client_registration_credmanager"),
     }
 
     ldif_template_base = '/opt/templates/ldif'
@@ -335,6 +340,7 @@ def import_ldif():
         'groups.ldif',
         'o_site.ldif',
         'scripts.ldif',
+        'scripts_cred_manager.ldif',
         'configuration.ldif',
         'scim.ldif',
         'asimba.ldif',
@@ -498,6 +504,64 @@ def sync_ldap_pkcs12():
         fw.write(pkcs)
 
 
+# TODO: Remove oxtrust related code from openldap
+def reindent(text, num_spaces=1):
+    text = [(num_spaces * " ") + line.lstrip() for line in text.splitlines()]
+    text = "\n".join(text)
+    return text
+
+
+def generate_base64_contents(text, num_spaces=1):
+    text = text.encode("base64").strip()
+    if num_spaces > 0:
+        text = reindent(text, num_spaces)
+    return text
+
+
+def oxtrust_config():
+    # keeping redundent data in context of ldif ctx_data dict for now.
+    # so that we can easily remove it from here
+    ctx = {
+        'inumOrg': r"{}".format(consul.kv.get('inumOrg')),  # raw string
+        'admin_email': consul.kv.get('admin_email'),
+        'inumAppliance': consul.kv.get('inumAppliance'),
+        'hostname': consul.kv.get('hostname'),
+        'shibJksFn': consul.kv.get('shibJksFn'),
+        'shibJksPass': consul.kv.get('shibJksPass'),
+        'jetty_base': consul.kv.get('jetty_base'),
+        'oxTrustConfigGeneration': consul.kv.get('oxTrustConfigGeneration'),
+        'encoded_shib_jks_pw': consul.kv.get('encoded_shib_jks_pw'),
+        'oxauth_client_id': consul.kv.get('oxauth_client_id'),
+        'oxauthClient_encoded_pw': consul.kv.get('oxauthClient_encoded_pw'),
+        'scim_rs_client_id': consul.kv.get('scim_rs_client_id'),
+        'scim_rs_client_jks_fn': consul.kv.get('scim_rs_client_jks_fn'),
+        'scim_rs_client_jks_pass_encoded': consul.kv.get('scim_rs_client_jks_pass_encoded'),
+        'passport_rs_client_id': consul.kv.get('passport_rs_client_id'),
+        'passport_rs_client_jks_fn': consul.kv.get('passport_rs_client_jks_fn'),
+        'passport_rs_client_jks_pass_encoded': consul.kv.get('passport_rs_client_jks_pass_encoded'),
+        'shibboleth_version': consul.kv.get('shibboleth_version'),
+        'idp3Folder': consul.kv.get('idp3Folder'),
+        'orgName': consul.kv.get('orgName'),
+        'ldap_site_binddn': consul.kv.get('ldap_site_binddn'),
+        'encoded_ox_ldap_pw': consul.kv.get('encoded_ox_ldap_pw'),
+        'ldap_hostname': consul.kv.get('ldap_init_host'),
+        'ldaps_port': consul.kv.get('ldap_init_port'),
+    }
+
+    oxtrust_template_base = '/opt/templates/oxtrust'
+
+    key_and_jsonfile_map = {
+        'oxtrust_cache_refresh_base64': 'oxtrust-cache-refresh.json',
+        'oxtrust_config_base64': 'oxtrust-config.json',
+        'oxtrust_import_person_base64': 'oxtrust-import-person.json'
+    }
+
+    for key, json_file in key_and_jsonfile_map.iteritems():
+        json_file_path = os.path.join(oxtrust_template_base, json_file)
+        with open(json_file_path, 'r') as fp:
+            consul.kv.set(key, generate_base64_contents(fp.read() % ctx))
+
+
 def main():
     server = {
         "host": guess_ip_addr(),
@@ -526,6 +590,13 @@ def main():
 
     if as_boolean(GLUU_LDAP_INIT):
         export_opendj_public_cert()
+
+        consul.kv.set('ldap_init_host', GLUU_LDAP_INIT_HOST)
+        consul.kv.set('ldap_init_port', GLUU_LDAP_INIT_PORT)
+        # @TODO: enable oxTrustConfigGeneration
+        consul.kv.set("oxTrustConfigGeneration", False)
+
+        oxtrust_config()
         render_ldif()
         import_ldif()
     else:
