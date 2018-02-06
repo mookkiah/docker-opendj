@@ -60,6 +60,18 @@ def guess_ip_addr():
     return addr
 
 
+def encrypt_text(text, key):
+    # Porting from pyDes-based encryption (see http://git.io/htxa)
+    # to use M2Crypto instead (see https://gist.github.com/mrluanma/917014)
+    cipher = Cipher(alg="des_ede3_ecb",
+                    key=b"{}".format(key),
+                    op=1,
+                    iv="\0" * 16)
+    encrypted_text = cipher.update(b"{}".format(text))
+    encrypted_text += cipher.final()
+    return base64.b64encode(encrypted_text)
+
+
 def decrypt_text(encrypted_text, key):
     # Porting from pyDes-based encryption (see http://git.io/htpk)
     # to use M2Crypto instead (see https://gist.github.com/mrluanma/917014)
@@ -160,8 +172,46 @@ def configure_opendj():
             logger.warn(err)
 
 
-def export_opendj_cert():
-    pass
+def export_opendj_public_cert():
+    logger.info("Exporting OpenDJ certs.")
+
+    with open("/opt/opendj/config/keystore.pin") as fr:
+        pin = fr.read().strip()
+        # consul.kv.set("opendj_pin", pin)
+
+        cmd = " ".join([
+            "/usr/bin/keytool",
+            "-exportcert",
+            "-keystore /opt/opendj/config/truststore",
+            "-storepass {}".format(pin),
+            "-file /etc/certs/opendj.crt",
+            "-alias server-cert",
+            "-rfc",
+        ])
+        _, err, code = exec_cmd(cmd)
+        if code:
+            logger.warn(err)
+
+        cmd = " ".join([
+            "/usr/bin/keytool",
+            "-importkeystore",
+            "-srckeystore /opt/opendj/config/truststore",
+            "-srcstoretype jks",
+            "-srcstorepass {}".format(pin),
+            "-destkeystore /etc/certs/opendj.pkcs12",
+            "-deststoretype pkcs12",
+            "-deststorepass {}".format(consul.kv.get("opendj_p12_pass")),
+            "-srcalias server-cert",
+        ])
+        _, err, code = exec_cmd(cmd)
+        if code:
+            logger.warn(err)
+
+    with open("/etc/certs/opendj.pkcs12") as fr:
+        consul.kv.set("ldap_pkcs12_base64", encrypt_text(
+            fr.read(),
+            consul.kv.get("encoded_salt"),
+        ))
 
 
 def render_ldif():
@@ -439,6 +489,15 @@ def check_connection(host, port):
     return code == 0
 
 
+def sync_ldap_pkcs12():
+    logger.info("Syncing OpenDJ cert.")
+    pkcs = decrypt_text(consul.kv.get("ldap_pkcs12_base64"),
+                        consul.kv.get("encoded_salt"))
+
+    with open(consul.kv.get("ldapTrustStoreFn"), "wb") as fw:
+        fw.write(pkcs)
+
+
 def main():
     server = {
         "host": guess_ip_addr(),
@@ -460,28 +519,25 @@ def main():
     install_opendj()
     configure_opendj()
 
-    # @TODO: export certs
-    export_opendj_cert()
-
     with open("/opt/templates/index.json") as fr:
         data = json.load(fr)
         index_opendj("userRoot", data)
         index_opendj("site", data)
 
     if as_boolean(GLUU_LDAP_INIT):
+        export_opendj_public_cert()
         render_ldif()
         import_ldif()
     else:
+        sync_ldap_pkcs12()
         peers = {
             k: json.loads(v) for k, v in consul.kv.find("ldap_servers", {}).iteritems()
             if k != "ldap_servers/{}:{}".format(server["host"], server["ldaps_port"])
         }
-
         for idx, peer in peers.iteritems():
             # if peer is not active, skip and try another one
             if not check_connection(peer["host"], peer["ldaps_port"]):
                 continue
-
             # replicate from active server, no need to replicate from remaining peer
             replicate_from(peer, server)
             break

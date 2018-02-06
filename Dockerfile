@@ -34,6 +34,7 @@ RUN pip install "consulate==0.6.0" "m2crypto==0.22.3"
 # ====
 # misc
 # ====
+RUN mkdir -p /etc/certs
 COPY schemas/96-eduperson.ldif /opt/opendj/template/config/schema/
 COPY schemas/101-ox.ldif /opt/opendj/template/config/schema/
 COPY schemas/77-customAttributes.ldif /opt/opendj/template/config/schema/
