@@ -202,7 +202,7 @@ def export_opendj_public_cert():
             "-srcstorepass {}".format(pin),
             "-destkeystore /etc/certs/opendj.pkcs12",
             "-deststoretype pkcs12",
-            "-deststorepass {}".format(consul.kv.get("opendj_p12_pass")),
+            "-deststorepass {}".format(consul.kv.get("ldap_truststore_pass")),
             "-srcalias server-cert",
         ])
         _, err, code = exec_cmd(cmd)
