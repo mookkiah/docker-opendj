@@ -6,7 +6,6 @@ LABEL maintainer="Gluu Inc. <support@gluu.org>"
 # Alpine packages
 # ===============
 RUN apk update && apk add --no-cache \
-    bash \
     py-pip \
     openssl-dev \
     gcc \
@@ -41,5 +40,4 @@ COPY schemas/77-customAttributes.ldif /opt/opendj/template/config/schema/
 COPY templates /opt/templates
 COPY scripts /opt/scripts
 
-RUN chmod +x /opt/scripts/entrypoint.sh
-CMD ["/opt/scripts/entrypoint.sh"]
+CMD ["sh", "/opt/scripts/entrypoint.sh"]
