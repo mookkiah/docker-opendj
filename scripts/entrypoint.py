@@ -126,8 +126,17 @@ def install_opendj():
             fw.write(content)
 
     # 2) run installer
-    cmd = "/opt/opendj/setup --no-prompt --cli --acceptLicense " \
-          "--propertiesFilePath /opt/opendj/opendj-setup.properties"
+    cmd = " ".join([
+        "/opt/opendj/setup",
+        "--no-prompt",
+        "--cli",
+        "--acceptLicense",
+        "--propertiesFilePath /opt/opendj/opendj-setup.properties",
+        "--usePkcs12keyStore /etc/certs/opendj.pkcs12",
+        "--keyStorePassword {}".format(
+            decrypt_text(consul.kv.get("encoded_ldapTrustStorePass"), consul.kv.get("encoded_salt"))
+        ),
+    ])
     _, err, code = exec_cmd(cmd)
     if code:
         logger.warn(err)
@@ -172,48 +181,6 @@ def configure_opendj():
         _, err, code = exec_cmd(cmd)
         if code:
             logger.warn(err)
-
-
-def export_opendj_public_cert():
-    logger.info("Exporting OpenDJ certs.")
-
-    with open("/opt/opendj/config/keystore.pin") as fr:
-        pin = fr.read().strip()
-        # consul.kv.set("opendj_pin", pin)
-
-        cmd = " ".join([
-            "/usr/bin/keytool",
-            "-exportcert",
-            "-keystore /opt/opendj/config/truststore",
-            "-storepass {}".format(pin),
-            "-file /etc/certs/opendj.crt",
-            "-alias server-cert",
-            "-rfc",
-        ])
-        _, err, code = exec_cmd(cmd)
-        if code:
-            logger.warn(err)
-
-        cmd = " ".join([
-            "/usr/bin/keytool",
-            "-importkeystore",
-            "-srckeystore /opt/opendj/config/truststore",
-            "-srcstoretype jks",
-            "-srcstorepass {}".format(pin),
-            "-destkeystore /etc/certs/opendj.pkcs12",
-            "-deststoretype pkcs12",
-            "-deststorepass {}".format(consul.kv.get("ldap_truststore_pass")),
-            "-srcalias server-cert",
-        ])
-        _, err, code = exec_cmd(cmd)
-        if code:
-            logger.warn(err)
-
-    with open("/etc/certs/opendj.pkcs12") as fr:
-        consul.kv.set("ldap_pkcs12_base64", encrypt_text(
-            fr.read(),
-            consul.kv.get("encoded_salt"),
-        ))
 
 
 def render_ldif():
@@ -504,7 +471,6 @@ def sync_ldap_pkcs12():
         fw.write(pkcs)
 
 
-# TODO: Remove oxtrust related code from openldap
 def reindent(text, num_spaces=1):
     text = [(num_spaces * " ") + line.lstrip() for line in text.splitlines()]
     text = "\n".join(text)
@@ -562,6 +528,20 @@ def oxtrust_config():
             consul.kv.set(key, generate_base64_contents(fp.read() % ctx))
 
 
+def sync_ldap_certs():
+    """Gets opendj.crt, opendj.key, and opendj.pem
+    """
+    ssl_cert = decrypt_text(consul.kv.get("ldap_ssl_cert"), consul.kv.get("encoded_salt"))
+    with open("/etc/certs/opendj.crt", "w") as fw:
+        fw.write(ssl_cert)
+    ssl_key = decrypt_text(consul.kv.get("ldap_ssl_key"), consul.kv.get("encoded_salt"))
+    with open("/etc/certs/opendj.key", "w") as fw:
+        fw.write(ssl_key)
+    ssl_cacert = decrypt_text(consul.kv.get("ldap_ssl_cacert"), consul.kv.get("encoded_salt"))
+    with open("/etc/certs/opendj.pem", "w") as fw:
+        fw.write(ssl_cacert)
+
+
 def main():
     server = {
         "host": guess_ip_addr(),
@@ -580,6 +560,9 @@ def main():
         )
         fw.write(admin_pw)
 
+    sync_ldap_certs()
+    sync_ldap_pkcs12()
+
     install_opendj()
     configure_opendj()
 
@@ -589,8 +572,6 @@ def main():
         index_opendj("site", data)
 
     if as_boolean(GLUU_LDAP_INIT):
-        export_opendj_public_cert()
-
         consul.kv.set('ldap_init_host', GLUU_LDAP_INIT_HOST)
         consul.kv.set('ldap_init_port', GLUU_LDAP_INIT_PORT)
         # @TODO: enable oxTrustConfigGeneration
@@ -600,7 +581,6 @@ def main():
         render_ldif()
         import_ldif()
     else:
-        sync_ldap_pkcs12()
         peers = {
             k: json.loads(v) for k, v in consul.kv.find("ldap_servers", {}).iteritems()
             if k != "ldap_servers/{}:{}".format(server["host"], server["ldaps_port"])
