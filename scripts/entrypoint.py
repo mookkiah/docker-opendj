@@ -8,6 +8,7 @@ import shlex
 import socket
 import struct
 import subprocess
+from contextlib import contextmanager
 
 from consulate import Consul
 from M2Crypto.EVP import Cipher
@@ -136,15 +137,16 @@ def install_opendj():
         "--keyStorePassword {}".format(
             decrypt_text(consul.kv.get("encoded_ldapTrustStorePass"), consul.kv.get("encoded_salt"))
         ),
+        "--doNotStart",
     ])
-    _, err, code = exec_cmd(cmd)
-    if code:
+    out, err, code = exec_cmd(cmd)
+    if code and err:
         logger.warn(err)
 
-    # 3) run dsjavaproperties
-    exec_cmd("/opt/opendj/bin/dsjavaproperties")
-    _, err, code = exec_cmd(cmd)
-    if code != 3:
+
+def run_dsjavaproperties():
+    _, err, code = exec_cmd("/opt/opendj/bin/dsjavaproperties")
+    if code and err:
         logger.warn(err)
 
 
@@ -542,6 +544,31 @@ def sync_ldap_certs():
         fw.write(ssl_cacert)
 
 
+@contextmanager
+def ds_context():
+    """Ensures Directory Server are up and teardown at the end of the context.
+    """
+
+    cmd = "/opt/opendj/bin/status -D '{}' -j {} --connectTimeout 10000".format(
+        consul.kv.get("ldap_binddn"),
+        DEFAULT_ADMIN_PW_PATH,
+    )
+    out, err, code = exec_cmd(cmd)
+    running = out.startswith("Unable to connect to the server")
+
+    if not running:
+        logger.info("Trying to run Directory Server temporarily.")
+        exec_cmd("/opt/opendj/bin/start-ds")
+
+    try:
+        yield
+    except Exception:
+        raise
+    finally:
+        logger.info("Trying to shutdown Directory Server temporarily.")
+        exec_cmd("/opt/opendj/bin/stop-ds --quiet")
+
+
 def main():
     server = {
         "host": guess_ip_addr(),
@@ -563,44 +590,58 @@ def main():
     sync_ldap_certs()
     sync_ldap_pkcs12()
 
-    install_opendj()
-    configure_opendj()
+    # install and configure Directory Server
+    if not os.path.isfile("/opt/opendj/config/config.ldif"):
+        install_opendj()
 
-    with open("/opt/templates/index.json") as fr:
-        data = json.load(fr)
-        index_opendj("userRoot", data)
-        index_opendj("site", data)
+        with ds_context():
+            run_dsjavaproperties()
+            configure_opendj()
+
+            with open("/opt/templates/index.json") as fr:
+                data = json.load(fr)
+                index_opendj("userRoot", data)
+                index_opendj("site", data)
 
     if as_boolean(GLUU_LDAP_INIT):
-        consul.kv.set('ldap_init_host', GLUU_LDAP_INIT_HOST)
-        consul.kv.set('ldap_init_port', GLUU_LDAP_INIT_PORT)
-        # @TODO: enable oxTrustConfigGeneration
-        consul.kv.set("oxTrustConfigGeneration", False)
+        if not os.path.isfile("/flag/ldap_initialized"):
+            consul.kv.set('ldap_init_host', GLUU_LDAP_INIT_HOST)
+            consul.kv.set('ldap_init_port', GLUU_LDAP_INIT_PORT)
+            # @TODO: enable oxTrustConfigGeneration
+            consul.kv.set("oxTrustConfigGeneration", False)
 
-        oxtrust_config()
-        render_ldif()
-        import_ldif()
+            oxtrust_config()
+            render_ldif()
+
+            with ds_context():
+                import_ldif()
+
+            exec_cmd("mkdir -p /flag")
+            exec_cmd("touch /flag/ldap_initialized")
     else:
         peers = {
             k: json.loads(v) for k, v in consul.kv.find("ldap_servers", {}).iteritems()
             if k != "ldap_servers/{}:{}".format(server["host"], server["ldaps_port"])
         }
-        for idx, peer in peers.iteritems():
-            # if peer is not active, skip and try another one
-            if not check_connection(peer["host"], peer["ldaps_port"]):
-                continue
-            # replicate from active server, no need to replicate from remaining peer
-            replicate_from(peer, server)
-            break
+        with ds_context():
+            for idx, peer in peers.iteritems():
+                # if peer is not active, skip and try another one
+                if not check_connection(peer["host"], peer["ldaps_port"]):
+                    continue
+                # replicate from active server, no need to replicate from
+                # remaining peer
+                replicate_from(peer, server)
+                break
 
     # register current server for discovery
     register_server(server)
 
-    try:
-        os.unlink(DEFAULT_ADMIN_PW_PATH)
-        os.unlink("/opt/opendj/opendj-setup.properties")
-    except OSError:
-        pass
+    # post-installation cleanup
+    for f in [DEFAULT_ADMIN_PW_PATH, "/opt/opendj/opendj-setup.properties"]:
+        try:
+            os.unlink(f)
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":

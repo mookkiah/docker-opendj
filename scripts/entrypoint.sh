@@ -1,10 +1,10 @@
 #!/bin/sh
 set -e
 
+mkdir -p /opt/opendj/locks
+
 if [ ! -f /touched ]; then
     python /opt/scripts/entrypoint.py
-    # stop opendj instance (if any) to avoid conflict on starting the actual server
-    /opt/opendj/bin/stop-ds --quiet >>/dev/null
     touch /touched
 fi
 
