@@ -27,8 +27,9 @@ RUN wget -q "$OPENDJ_DOWNLOAD_URL" -P /tmp \
 # ======
 # Python
 # ======
-RUN pip install -U pip
-RUN pip install "consulate==0.6.0" "m2crypto==0.22.3"
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install -U pip \
+    && pip install -r /tmp/requirements.txt --no-cache-dir
 
 # ====
 # misc
