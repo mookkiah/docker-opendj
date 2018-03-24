@@ -10,8 +10,8 @@ import struct
 import subprocess
 from contextlib import contextmanager
 
+import pyDes
 from consulate import Consul
-from M2Crypto.EVP import Cipher
 
 GLUU_KV_HOST = os.environ.get('GLUU_KV_HOST', 'localhost')
 GLUU_KV_PORT = os.environ.get('GLUU_KV_PORT', 8500)
@@ -84,30 +84,11 @@ def guess_ip_addr():
     return addr
 
 
-def encrypt_text(text, key):
-    # Porting from pyDes-based encryption (see http://git.io/htxa)
-    # to use M2Crypto instead (see https://gist.github.com/mrluanma/917014)
-
-    cipher = Cipher(alg="des_ede_ecb",
-                    key=b"{}".format(key),
-                    op=1,
-                    iv="\0" * 16)
-    encrypted_text = cipher.update(b"{}".format(text))
-    encrypted_text += cipher.final()
-    return base64.b64encode(encrypted_text)
-
-
 def decrypt_text(encrypted_text, key):
-    # Porting from pyDes-based encryption (see http://git.io/htpk)
-    # to use M2Crypto instead (see https://gist.github.com/mrluanma/917014)
-    cipher = Cipher(alg="des_ede_ecb",
-                    key=b"{}".format(key),
-                    op=0,
-                    iv="\0" * 16)
-    encrypted_text = base64.b64decode(b"{}".format(encrypted_text))
-    decrypted_text = cipher.update(encrypted_text)
-    decrypted_text += cipher.final()
-    return decrypted_text
+    cipher = pyDes.triple_des(b"{}".format(key), pyDes.ECB,
+                              padmode=pyDes.PAD_PKCS5)
+    encrypted_text = b"{}".format(base64.b64decode(encrypted_text))
+    return cipher.decrypt(encrypted_text)
 
 
 def exec_cmd(cmd):
