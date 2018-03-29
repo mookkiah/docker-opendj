@@ -20,6 +20,7 @@ GLUU_REDIS_URL = os.environ.get('GLUU_REDIS_URL', 'localhost:6379')
 GLUU_LDAP_INIT = os.environ.get("GLUU_LDAP_INIT", False)
 GLUU_LDAP_INIT_HOST = os.environ.get('GLUU_LDAP_INIT_HOST', 'localhost')
 GLUU_LDAP_INIT_PORT = os.environ.get("GLUU_LDAP_INIT_PORT", 1636)
+GLUU_LDAP_ADDR_INTERFACE = os.environ.get("GLUU_LDAP_ADDR_INTERFACE", "")
 
 GLUU_LDAP_PORT = os.environ.get("GLUU_LDAP_PORT", 1389)
 GLUU_LDAPS_PORT = os.environ.get("GLUU_LDAPS_PORT", 1636)
@@ -70,11 +71,15 @@ def get_ip_addr(ifname):
     return addr
 
 
-def guess_ip_addr():
+def guess_ip_addr(ifname=GLUU_LDAP_ADDR_INTERFACE):
     addr = ""
 
-    # priorities
-    for ifname in ("eth1", "eth0", "wlan0"):
+    if ifname:
+        return get_ip_addr(ifname)
+
+    # interface is not defined, try to check common interfaces
+    # priorities started from private to public
+    for ifname in ("eth1", "eth0"):
         try:
             addr = get_ip_addr(ifname)
         except IOError:
