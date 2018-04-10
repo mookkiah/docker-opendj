@@ -21,6 +21,7 @@ GLUU_LDAP_INIT = os.environ.get("GLUU_LDAP_INIT", False)
 GLUU_LDAP_INIT_HOST = os.environ.get('GLUU_LDAP_INIT_HOST', 'localhost')
 GLUU_LDAP_INIT_PORT = os.environ.get("GLUU_LDAP_INIT_PORT", 1636)
 GLUU_LDAP_ADDR_INTERFACE = os.environ.get("GLUU_LDAP_ADDR_INTERFACE", "")
+GLUU_OXTRUST_CONFIG_GENERATION = os.environ.get("GLUU_OXTRUST_CONFIG_GENERATION", False)
 
 GLUU_LDAP_PORT = os.environ.get("GLUU_LDAP_PORT", 1389)
 GLUU_LDAPS_PORT = os.environ.get("GLUU_LDAPS_PORT", 1636)
@@ -614,8 +615,7 @@ def main():
         if not os.path.isfile("/flag/ldap_initialized"):
             set_config('ldap_init_host', GLUU_LDAP_INIT_HOST)
             set_config('ldap_init_port', GLUU_LDAP_INIT_PORT)
-            # @TODO: enable oxTrustConfigGeneration
-            set_config("oxTrustConfigGeneration", False)
+            set_config("oxTrustConfigGeneration", as_boolean(GLUU_OXTRUST_CONFIG_GENERATION))
 
             oxtrust_config()
             render_ldif()
