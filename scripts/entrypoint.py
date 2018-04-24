@@ -21,6 +21,7 @@ GLUU_LDAP_INIT = os.environ.get("GLUU_LDAP_INIT", False)
 GLUU_LDAP_INIT_HOST = os.environ.get('GLUU_LDAP_INIT_HOST', 'localhost')
 GLUU_LDAP_INIT_PORT = os.environ.get("GLUU_LDAP_INIT_PORT", 1636)
 GLUU_LDAP_ADDR_INTERFACE = os.environ.get("GLUU_LDAP_ADDR_INTERFACE", "")
+GLUU_LDAP_ADVERTISE_ADDR = os.environ.get("GLUU_LDAP_ADVERTISE_ADDR", "")
 GLUU_OXTRUST_CONFIG_GENERATION = os.environ.get("GLUU_OXTRUST_CONFIG_GENERATION", False)
 
 GLUU_LDAP_PORT = os.environ.get("GLUU_LDAP_PORT", 1389)
@@ -90,6 +91,11 @@ def guess_ip_addr(ifname=GLUU_LDAP_ADDR_INTERFACE):
     return addr
 
 
+def guess_host_addr():
+    addr = GLUU_LDAP_ADVERTISE_ADDR or guess_ip_addr()
+    return addr
+
+
 def decrypt_text(encrypted_text, key):
     cipher = pyDes.triple_des(b"{}".format(key), pyDes.ECB,
                               padmode=pyDes.PAD_PKCS5)
@@ -119,7 +125,7 @@ def install_opendj():
 
     # 1) render opendj-setup.properties
     ctx = {
-        "ldap_hostname": guess_ip_addr(),
+        "ldap_hostname": guess_host_addr(),
         "ldap_port": get_config("ldap_port"),
         "ldaps_port": get_config("ldaps_port"),
         "ldap_jmx_port": GLUU_JMX_PORT,
@@ -174,7 +180,7 @@ def configure_opendj():
         'set-password-policy-prop --policy-name "Default Password Policy" --set default-password-storage-scheme:"Salted SHA-512"',
         'set-crypto-manager-prop --set ssl-encryption:true',
     ]
-    hostname = guess_ip_addr()
+    hostname = guess_host_addr()
     binddn = get_config("ldap_binddn")
 
     for config in config_mods:
@@ -329,7 +335,7 @@ def import_ldif():
     for ldif_file_fn in ldif_files:
         cmd = " ".join([
             "/opt/opendj/bin/ldapmodify",
-            "--hostname {}".format(guess_ip_addr()),
+            "--hostname {}".format(guess_host_addr()),
             "--port {}".format(GLUU_ADMIN_PORT),
             "--bindDN '{}'".format(get_config("ldap_binddn")),
             "-j {}".format(DEFAULT_ADMIN_PW_PATH),
@@ -363,7 +369,7 @@ def index_opendj(backend, data):
                     "--index-name {}".format(attr_name),
                     "--set index-type:{}".format(index_type),
                     "--set index-entry-limit:4000",
-                    "--hostName {}".format(guess_ip_addr()),
+                    "--hostName {}".format(guess_host_addr()),
                     "--port {}".format(GLUU_ADMIN_PORT),
                     "--bindDN '{}'".format(get_config("ldap_binddn")),
                     "-j {}".format(DEFAULT_ADMIN_PW_PATH),
@@ -565,7 +571,6 @@ def ds_context():
     running = out.startswith("Unable to connect to the server")
 
     if not running:
-        logger.info("Trying to run Directory Server temporarily.")
         exec_cmd("/opt/opendj/bin/start-ds")
 
     try:
@@ -573,13 +578,12 @@ def ds_context():
     except Exception:
         raise
     finally:
-        logger.info("Trying to shutdown Directory Server temporarily.")
         exec_cmd("/opt/opendj/bin/stop-ds --quiet")
 
 
 def main():
     server = {
-        "host": guess_ip_addr(),
+        "host": guess_host_addr(),
         "ldap_port": GLUU_LDAP_PORT,
         "ldaps_port": GLUU_LDAPS_PORT,
         "admin_port": GLUU_ADMIN_PORT,
