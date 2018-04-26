@@ -35,5 +35,6 @@ COPY schemas/101-ox.ldif /opt/opendj/template/config/schema/
 COPY schemas/77-customAttributes.ldif /opt/opendj/template/config/schema/
 COPY templates /opt/templates
 COPY scripts /opt/scripts
+RUN chmod +x /opt/scripts/entrypoint.sh
 
-CMD ["sh", "/opt/scripts/entrypoint.sh"]
+CMD ["/opt/scripts/entrypoint.sh"]

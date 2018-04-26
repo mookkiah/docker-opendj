@@ -1,0 +1,80 @@
+#! /usr/bin/python2
+# -*- coding: utf-8-unix -*-
+
+# Checks waits for the following to happen before moving on to the
+# passed command:
+#
+# - Consul is up and populated
+#
+# author: torstein@escenic.com
+
+import consulate
+import logging as log
+import os
+import requests
+import sys
+import time
+
+GLUU_KV_HOST = os.environ.get("GLUU_KV_HOST", "localhost")
+GLUU_KV_PORT = os.environ.get("GLUU_KV_PORT", 8500)
+
+MAX_WAIT_SECONDS = 300
+SLEEP_DURATION = 3
+LAST_CONSUL_KEY = "gluu/config/oxauth_openid_jwks_fn"
+
+
+def wait_for_consul_to_be_up_and_populated(consul):
+    for i in range(0, MAX_WAIT_SECONDS, SLEEP_DURATION):
+        try:
+            value = consul.kv.get(LAST_CONSUL_KEY)
+
+            if value is None:
+                log.debug(
+                    "Consul not populated yet, waiting for key=" +
+                    LAST_CONSUL_KEY + " " +
+                    str(i) + "/" + str(MAX_WAIT_SECONDS)
+                )
+            else:
+                log.info("Consul is populated :-)")
+                return 0
+
+        except requests.exceptions.ConnectionError:
+            log.debug(
+                "Consul not up yet, sleeping: " +
+                str(i) + "/" + str(MAX_WAIT_SECONDS)
+            )
+        time.sleep(SLEEP_DURATION)
+
+    log.error("Consul not ready, after " + str(MAX_WAIT_SECONDS) + " seconds.")
+    sys.exit(1)
+
+
+def execute_passed_command(command_list):
+    log.info(
+        "Now executing the arguments passed to " +
+        sys.argv[0] +
+        ": " +
+        " ".join(command_list)
+    )
+    os.system(" ".join(command_list))
+
+
+def configure_logger():
+    # When debugging wait-for-it, set level=log.INFO or pass
+    # --log=DEBUG on the command line.
+    log.basicConfig(
+        level=log.INFO,
+        format='%(asctime)s [%(levelname)s] [%(filename)s] - %(message)s'
+    )
+
+
+if __name__ == "__main__":
+    configure_logger()
+
+    log.info(
+        "Hi world, waiting for Consul to be ready before " +
+        "running " + " ".join(sys.argv[1:])
+    )
+    consul = consulate.Consul(host=GLUU_KV_HOST, port=GLUU_KV_PORT)
+    wait_for_consul_to_be_up_and_populated(consul)
+    execute_passed_command(sys.argv[1:])
