@@ -1498,6 +1498,12 @@ attributeTypes: ( 1.3.6.1.4.1.48710.1.3.254 NAME 'oxScriptType'
   SUBSTR caseIgnoreSubstringsMatch
   SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
   X-ORIGIN 'Gluu created attribute' )
+attributeTypes: ( 1.3.6.1.4.1.48710.1.3.379 NAME 'oxScriptError'
+  DESC 'Attribute that contains first error which application get during it execution'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'Gluu created attribute' )
 attributeTypes: ( 1.3.6.1.4.1.48710.1.3.255 NAME 'oxSmtpConfiguration'
   DESC 'SMTP configuration'
   EQUALITY caseIgnoreMatch
@@ -2208,25 +2214,49 @@ attributeTypes: ( 1.3.6.1.4.1.48710.1.3.377 NAME 'gluuSmtpServerTrust'
   SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
   X-ORIGIN 'Gluu created attribute' )
 attributeTypes: ( 1.3.6.1.4.1.48710.1.3.378 NAME 'oxScopeExpression'
-  DESC 'Scope Expression'
+  DESC 'Scope expression'
   EQUALITY caseIgnoreMatch
   SUBSTR caseIgnoreSubstringsMatch
   SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
   X-ORIGIN 'Gluu created attribute' )
-attributeTypes: ( 1.3.6.1.4.1.48710.1.3.379 NAME 'oxPreferredMethod'
+attributeTypes: ( 1.3.6.1.4.1.48710.1.3.380 NAME 'oxPreferredMethod'
   DESC 'cred-manager - preferred method to use for user authentication'
   EQUALITY caseIgnoreMatch
   SUBSTR caseIgnoreSubstringsMatch
   SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
   X-ORIGIN 'Gluu created attribute' )
-attributeTypes: ( 1.3.6.1.4.1.48710.1.3.380 NAME 'oxOTPDevices'
+attributeTypes: ( 1.3.6.1.4.1.48710.1.3.381 NAME 'oxOTPDevices'
   DESC 'cred-manager - Json representation of OTP devices. Complementary to oxExternalUid attribute'
   EQUALITY caseIgnoreMatch
   SUBSTR caseIgnoreSubstringsMatch
   SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
   X-ORIGIN 'Gluu created attribute' )
-attributeTypes: ( 1.3.6.1.4.1.48710.1.3.381 NAME 'oxMobileDevices'
+attributeTypes: ( 1.3.6.1.4.1.48710.1.3.382 NAME 'oxMobileDevices'
   DESC 'cred-manager - Json representation of mobile devices. Complementary to mobile attribute'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'Gluu created attribute' )
+attributeTypes: ( 1.3.6.1.4.1.48710.1.3.383 NAME 'oxdId'
+  DESC 'oxd Id'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'Gluu created attribute' )
+attributeTypes: ( 1.3.6.1.4.1.48710.1.3.384 NAME 'oxAuthAuthorizedOrigins'
+  DESC 'oxAuth Authorized Origins'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'Gluu created attribute' )
+attributeTypes: ( 1.3.6.1.4.1.48710.1.3.385 NAME 'oxStrongAuthPolicy'
+  DESC 'cred-manager - 2FA Enforcement Policy for User'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'Gluu created attribute' )
+attributeTypes: ( 1.3.6.1.4.1.48710.1.3.386 NAME 'oxTrustedDevicesInfo'
+  DESC 'cred-manager - List of devices with which strong authentication may be skipped'
   EQUALITY caseIgnoreMatch
   SUBSTR caseIgnoreSubstringsMatch
   SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
@@ -2241,7 +2271,7 @@ objectClasses: ( 1.3.6.1.4.1.48710.1.4.2 NAME 'gluuPerson'
   SUP ( top )
   STRUCTURAL
   MUST ( objectclass )
-  MAY ( associatedClient $ c $ displayName $ givenName $ gluuManagedOrganizations $ gluuOptOuts $ gluuStatus $ gluuWhitePagesListed $ iname $ inum $ mail $ gluuSLAManager $ memberOf $ o $ oxAuthPersistentJWT $ oxCreationTimestamp $ oxExternalUid $ oxLastLogonTime $ oxTrustActive $ oxTrustAddresses $ oxTrustEmail $ oxTrustEntitlements $ oxTrustExternalId $ oxTrustImsValue $ oxTrustMetaCreated $ oxTrustMetaLastModified $ oxTrustMetaLocation $ oxTrustMetaVersion $ oxTrustNameFormatted $ oxTrustPhoneValue $ oxTrustPhotos $ oxTrustProfileURL $ oxTrustRole $ oxTrustTitle $ oxTrustUserType $ oxTrusthonorificPrefix $ oxTrusthonorificSuffix $ oxTrustx509Certificate $ oxPasswordExpirationDate $ persistentId $ middleName $ nickname $ preferredUsername $ profile $ picture $ website $ emailVerified $ gender $ birthdate $ zoneinfo $ locale $ phoneNumberVerified $ address $ updatedAt $ preferredLanguage $ role $ secretAnswer $ secretQuestion $ seeAlso $ sn $ cn $ transientId $ uid $ userPassword $ st $ street $ l $ oxCountInvalidLogin $ oxEnrollmentCode $ gluuIMAPData $ oxPPID $ oxGuid $ userRandomKey $ oxPreferredMethod $ oxOTPDevices $ oxMobileDevices )
+  MAY ( associatedClient $ c $ displayName $ givenName $ gluuManagedOrganizations $ gluuOptOuts $ gluuStatus $ gluuWhitePagesListed $ iname $ inum $ mail $ gluuSLAManager $ memberOf $ o $ oxAuthPersistentJWT $ oxCreationTimestamp $ oxExternalUid $ oxLastLogonTime $ oxTrustActive $ oxTrustAddresses $ oxTrustEmail $ oxTrustEntitlements $ oxTrustExternalId $ oxTrustImsValue $ oxTrustMetaCreated $ oxTrustMetaLastModified $ oxTrustMetaLocation $ oxTrustMetaVersion $ oxTrustNameFormatted $ oxTrustPhoneValue $ oxTrustPhotos $ oxTrustProfileURL $ oxTrustRole $ oxTrustTitle $ oxTrustUserType $ oxTrusthonorificPrefix $ oxTrusthonorificSuffix $ oxTrustx509Certificate $ oxPasswordExpirationDate $ persistentId $ middleName $ nickname $ preferredUsername $ profile $ picture $ website $ emailVerified $ gender $ birthdate $ zoneinfo $ locale $ phoneNumberVerified $ address $ updatedAt $ preferredLanguage $ role $ secretAnswer $ secretQuestion $ seeAlso $ sn $ cn $ transientId $ uid $ userPassword $ st $ street $ l $ oxCountInvalidLogin $ oxEnrollmentCode $ gluuIMAPData $ oxPPID $ oxGuid $ userRandomKey $ oxPreferredMethod $ userCertificate $ oxOTPDevices $ oxMobileDevices $ oxStrongAuthPolicy $ oxTrustedDevicesInfo )
   X-ORIGIN 'Gluu created objectclass' )
 objectClasses: ( 1.3.6.1.4.1.48710.1.4.3 NAME 'gluuGroup'
   SUP ( top )
@@ -2253,7 +2283,7 @@ objectClasses: ( 1.3.6.1.4.1.48710.1.4.4 NAME 'gluuOrganization'
   SUP ( top )
   STRUCTURAL
   MUST ( objectclass )
-  MAY ( c $ county $ deployedAppliances $ description $ displayName $ gluuAddPersonCapability $ gluuAdditionalUsers $ gluuApplianceUpdateRequestList $ gluuCustomMessage $ gluuFaviconImage $ gluuFederationHostingEnabled $ gluuInvoiceNo $ gluuLogoImage $ gluuManageIdentityPermission $ gluuManager $ gluuManagerGroup $ gluuOrgProfileMgt $ gluuOrgShortName $ gluuPaidUntil $ gluuPaymentProcessorTimestamp $ gluuProStoresUser $ gluuStatus $ gluuTempFaviconImage $ gluuThemeColor $ gluuWhitePagesEnabled $ iname $ inum $ l $ mail $ memberOf $ nonProfit $ o $ oxCreationTimestamp $ oxLinkLinktrack $ oxLinktrackEnabled $ oxLinktrackLogin $ oxLinktrackPassword $ oxRegistrationConfiguration $ postalCode $ proStoresToken $ prostoresTimestamp $ scimAuthMode $ scimGroup $ scimStatus $ st $ street $ telephoneNumber $ title $ uid $ userPassword )
+  MAY ( c $ county $ deployedAppliances $ description $ displayName $ gluuAddPersonCapability $ gluuAdditionalUsers $ gluuApplianceUpdateRequestList $ gluuCustomMessage $ gluuFaviconImage $ gluuFederationHostingEnabled $ gluuInvoiceNo $ gluuLogoImage $ gluuManageIdentityPermission $ gluuManager $ gluuManagerGroup $ gluuOrgShortName $ gluuPaidUntil $ gluuPaymentProcessorTimestamp $ gluuProStoresUser $ gluuStatus $ gluuTempFaviconImage $ gluuThemeColor $ gluuWhitePagesEnabled $ iname $ inum $ l $ mail $ memberOf $ nonProfit $ o $ oxCreationTimestamp $ oxLinkLinktrack $ oxLinktrackEnabled $ oxLinktrackLogin $ oxLinktrackPassword $ oxRegistrationConfiguration $ postalCode $ proStoresToken $ prostoresTimestamp $ scimAuthMode $ scimGroup $ scimStatus $ st $ street $ telephoneNumber $ title $ uid $ userPassword )
   X-ORIGIN 'Gluu created objectclass' )
 objectClasses: ( 1.3.6.1.4.1.48710.1.4.5 NAME 'gluuAppliance'
   SUP ( top )
@@ -2331,7 +2361,7 @@ objectClasses: ( 1.3.6.1.4.1.48710.1.4.17 NAME 'oxAuthClient'
   SUP ( top )
   STRUCTURAL
   MUST ( objectclass )
-  MAY ( associatedPerson $ displayName $ inum $ oxAuthAppType $ oxAuthClientIdIssuedAt $ oxAuthClientSecret $ oxAuthClientSecretExpiresAt $ oxAuthClientURI $ oxAuthContact $ oxAuthDefaultAcrValues $ oxAuthDefaultMaxAge $ oxAuthGrantType $ oxAuthIdTokenEncryptedResponseAlg $ oxAuthIdTokenEncryptedResponseEnc $ oxAuthIdTokenSignedResponseAlg $ oxAuthInitiateLoginURI $ oxAuthJwksURI $ oxAuthJwks $ oxAuthLogoURI $ oxAuthPolicyURI $ oxAuthPostLogoutRedirectURI $ oxAuthRedirectURI $ oxAuthRegistrationAccessToken $ oxAuthRequestObjectSigningAlg $ oxAuthRequestObjectEncryptionAlg $ oxAuthRequestObjectEncryptionEnc $ oxAuthRequestURI $ oxAuthRequireAuthTime $ oxAuthResponseType $ oxAuthScope $ oxAuthSectorIdentifierURI $ oxAuthSignedResponseAlg $ oxAuthSubjectType $ oxAuthTokenEndpointAuthMethod $ oxAuthTokenEndpointAuthSigningAlg $ oxAuthTosURI $ oxAuthTrustedClient $ oxAuthUserInfoEncryptedResponseAlg $ oxAuthUserInfoEncryptedResponseEnc $ oxAuthExtraConf $ oxClaimRedirectURI $ oxLastAccessTime $ oxLastLogonTime $ oxPersistClientAuthorizations $ oxIncludeClaimsInIdToken $ oxRefreshTokenLifetime $ oxDisabled $ oxAuthLogoutURI $ oxAuthLogoutSessionRequired )
+  MAY ( associatedPerson $ displayName $ description $ inum $ oxAuthAppType $ oxAuthClientIdIssuedAt $ oxAuthClientSecret $ oxAuthClientSecretExpiresAt $ oxAuthClientURI $ oxAuthContact $ oxAuthDefaultAcrValues $ oxAuthDefaultMaxAge $ oxAuthGrantType $ oxAuthIdTokenEncryptedResponseAlg $ oxAuthIdTokenEncryptedResponseEnc $ oxAuthIdTokenSignedResponseAlg $ oxAuthInitiateLoginURI $ oxAuthJwksURI $ oxAuthJwks $ oxAuthLogoURI $ oxAuthPolicyURI $ oxAuthPostLogoutRedirectURI $ oxAuthRedirectURI $ oxAuthRegistrationAccessToken $ oxAuthRequestObjectSigningAlg $ oxAuthRequestObjectEncryptionAlg $ oxAuthRequestObjectEncryptionEnc $ oxAuthRequestURI $ oxAuthRequireAuthTime $ oxAuthResponseType $ oxAuthScope $ oxAuthSectorIdentifierURI $ oxAuthSignedResponseAlg $ oxAuthSubjectType $ oxAuthTokenEndpointAuthMethod $ oxAuthTokenEndpointAuthSigningAlg $ oxAuthTosURI $ oxAuthTrustedClient $ oxAuthUserInfoEncryptedResponseAlg $ oxAuthUserInfoEncryptedResponseEnc $ oxAuthExtraConf $ oxClaimRedirectURI $ oxLastAccessTime $ oxLastLogonTime $ oxPersistClientAuthorizations $ oxIncludeClaimsInIdToken $ oxRefreshTokenLifetime $ oxDisabled $ oxAuthLogoutURI $ oxAuthLogoutSessionRequired $ oxdId $ oxAuthAuthorizedOrigins )
   X-ORIGIN 'Gluu created objectclass' )
 objectClasses: ( 1.3.6.1.4.1.48710.1.4.18 NAME 'oxAuthCustomScope'
   SUP ( top )
@@ -2367,7 +2397,7 @@ objectClasses: ( 1.3.6.1.4.1.48710.1.4.23 NAME 'oxUmaResource'
   SUP ( top )
   STRUCTURAL
   MUST ( objectclass )
-  MAY ( displayName $ inum $ owner $ oxAssociatedClient $ oxAuthUmaScope $ oxFaviconImage $ oxGroup $ oxId $ oxResource $ oxRevision $ oxScopeExpression $ oxType $ description )
+  MAY ( displayName $ inum $ owner $ oxAssociatedClient $ oxAuthUmaScope $ oxFaviconImage $ oxGroup $ oxId $ oxResource $ oxRevision $ oxType $ oxScopeExpression $ oxAuthCreation $ oxAuthExpiration $ description )
   X-ORIGIN 'Gluu created objectclass' )
 objectClasses: ( 1.3.6.1.4.1.48710.1.4.24 NAME 'oxAuthUmaScopeDescription'
   SUP ( top )
@@ -2451,7 +2481,7 @@ objectClasses: ( 1.3.6.1.4.1.48710.1.4.37 NAME 'oxCustomScript'
   SUP ( top )
   STRUCTURAL
   MUST ( objectclass )
-  MAY ( inum $ displayName $ description $ oxScript $ oxScriptType $ programmingLanguage $ oxModuleProperty $ oxConfigurationProperty $ oxLevel $ oxRevision $ gluuStatus )
+  MAY ( inum $ displayName $ description $ oxScript $ oxScriptType $ programmingLanguage $ oxModuleProperty $ oxConfigurationProperty $ oxLevel $ oxRevision $ gluuStatus $ oxScriptError )
   X-ORIGIN 'Gluu created objectclass' )
 objectClasses: ( 1.3.6.1.4.1.48710.1.4.38 NAME 'oxDeviceRegistration'
   SUP ( top )
@@ -2481,7 +2511,7 @@ objectClasses: ( 1.3.6.1.4.1.48710.1.4.42 NAME 'oxSectorIdentifier'
   SUP ( top )
   STRUCTURAL
   MUST ( objectclass )
-  MAY ( inum $ oxAuthRedirectURI $ oxAuthClientId )
+  MAY ( oxId $ oxAuthRedirectURI $ oxAuthClientId )
   X-ORIGIN 'Gluu created objectclass' )
 objectClasses: ( 1.3.6.1.4.1.48710.1.4.43 NAME 'oxAsimbaConfiguration'
   SUP ( top )
