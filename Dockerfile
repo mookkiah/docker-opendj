@@ -37,4 +37,4 @@ COPY templates /opt/templates
 COPY scripts /opt/scripts
 RUN chmod +x /opt/scripts/entrypoint.sh
 
-CMD ["/opt/scripts/entrypoint.sh"]
+CMD ["/opt/scripts/wait-for-it", "/opt/scripts/entrypoint.sh"]
