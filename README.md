@@ -4,7 +4,7 @@ A docker image version of OpenDJ.
 
 ## Latest Stable Release
 
-Latest stable release is `gluufederation/opendj:3.1.2_dev`. See `CHANGES.md` for archives.
+Latest stable release is `gluufederation/opendj:3.1.3_dev`. See `CHANGES.md` for archives.
 
 ## Versioning/Tagging
 
@@ -12,10 +12,10 @@ This image uses its own versioning/tagging format.
 
     <IMAGE-NAME>:<GLUU-SERVER-VERSION>_<INTERNAL-REV-VERSION>
 
-For example, `gluufederation/opendj:3.1.2_dev` consists of:
+For example, `gluufederation/opendj:3.1.3_dev` consists of:
 
 - glufederation/opendj as `<IMAGE_NAME>`: the actual image name
-- 3.1.2 as `GLUU-SERVER-VERSION`: the Gluu Server version as setup reference
+- 3.1.3 as `GLUU-SERVER-VERSION`: the Gluu Server version as setup reference
 - `_dev` as `<BASELINE_DEV>`: used until official production release
 
 ## Installation
@@ -23,7 +23,7 @@ For example, `gluufederation/opendj:3.1.2_dev` consists of:
 Pull the image:
 
 ```
-docker pull gluufederation/opendj:3.1.2_dev
+docker pull gluufederation/opendj:3.1.3_dev
 ```
 
 ## Environment Variables
@@ -57,7 +57,7 @@ docker run -d \
     -e GLUU_CACHE_TYPE=REDIS \
     -e GLUU_REDIS_URL='redis.example:6379' \
     -v /path/to/ldap/flag:/flag \
-    gluufederation/opendj:3.1.2_dev
+    gluufederation/opendj:3.1.3_dev
 ```
 
 Note: to avoid data being re-initialized after container restart, volume mapping of `/flag` directory is encouraged. In the future, the process of LDAP initial data will be taken care by another container.
@@ -70,5 +70,5 @@ docker run -d \
     -e GLUU_KV_HOST=consul.example.com \
     -e GLUU_KV_PORT=8500 \
     -e GLUU_LDAP_INIT=false \
-    gluufederation/opendj:3.1.2_dev
+    gluufederation/opendj:3.1.3_dev
 ```
