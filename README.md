@@ -33,14 +33,11 @@ docker pull gluufederation/opendj:3.1.2_dev
 - `GLUU_LDAP_INIT`: whether to import initial LDAP entries (possible value are `true` or `false`).
 - `GLUU_LDAP_INIT_HOST`: hostname of LDAP for initial configuration (only usable when `GLUU_LDAP_INIT` set to `true`).
 - `GLUU_LDAP_INIT_PORT`: port of LDAP for initial configuration (only usable when `GLUU_LDAP_INIT` set to `true`).
-- `GLUU_CACHE_TYPE`: supported values are 'IN_MEMORY' and 'REDIS', default is 'IN_MEMORY'.
-- `GLUU_REDIS_URL`: URL of redis service, format is `redis_host:redis_port` (optional).
-- `GLU_LDAP_ADDR_INTERFACE`: interface name where the IP will be registered, if the value is empty, it will try to guess from `eth1` or `eth0`
-
-## Volumes
-
-1. `/opt/gluu/data/main_db` directory
-2. `/opt/gluu/data/site_db` directory
+- `GLUU_CACHE_TYPE`: supported values are `IN_MEMORY` and `REDIS`, default is `IN_MEMORY`.
+- `GLUU_REDIS_URL`: URL of redis service, format is `host:port` (optional).
+- `GLUU_REDIS_TYPE`: redis service type, either `STANDALONE` or `CLUSTER` (optional).
+- `GLU_LDAP_ADDR_INTERFACE`: interface name where the IP will be guessed and registered as OpenDJ host, e.g. `eth0`.
+- `GLU_LDAP_ADVERTISE_ADDR`: the hostname/IP address used as the host of OpenDJ server.
 
 ## Running The Container
 
@@ -55,7 +52,8 @@ docker run -d \
     -e GLUU_LDAP_INIT_HOST=ldap.example.com \
     -e GLUU_LDAP_INIT_PORT=1636 \
     -e GLUU_CACHE_TYPE=REDIS \
-    -e GLUU_REDIS_URL='redis.example:6379' \
+    -e GLUU_REDIS_URL='redis.example.com:6379' \
+    -v /path/to/ldap/db:/opt/opendj/db \
     -v /path/to/ldap/flag:/flag \
     gluufederation/opendj:3.1.2_dev
 ```
@@ -70,5 +68,6 @@ docker run -d \
     -e GLUU_KV_HOST=consul.example.com \
     -e GLUU_KV_PORT=8500 \
     -e GLUU_LDAP_INIT=false \
+    -v /path/to/ldap/db:/opt/opendj/db \
     gluufederation/opendj:3.1.2_dev
 ```
