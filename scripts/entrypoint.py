@@ -18,6 +18,7 @@ GLUU_KV_PORT = os.environ.get('GLUU_KV_PORT', 8500)
 GLUU_CACHE_TYPE = os.environ.get("GLUU_CACHE_TYPE", 'IN_MEMORY')
 GLUU_REDIS_URL = os.environ.get('GLUU_REDIS_URL', 'localhost:6379')
 GLUU_REDIS_TYPE = os.environ.get('GLUU_REDIS_TYPE', 'STANDALONE')
+GLUU_MEMCACHED_URL = os.environ.get('GLUU_MEMCACHED_URL', 'localhost:11211')
 GLUU_LDAP_INIT = os.environ.get("GLUU_LDAP_INIT", False)
 GLUU_LDAP_INIT_HOST = os.environ.get('GLUU_LDAP_INIT_HOST', 'localhost')
 GLUU_LDAP_INIT_PORT = os.environ.get("GLUU_LDAP_INIT_PORT", 1636)
@@ -209,6 +210,7 @@ def render_ldif():
         'cache_provider_type': GLUU_CACHE_TYPE,
         'redis_url': GLUU_REDIS_URL,
         'redis_type': GLUU_REDIS_TYPE,
+        'memcached_url': GLUU_MEMCACHED_URL,
         # oxpassport-config.ldif
         'inumAppliance': get_config('inumAppliance'),
         'ldap_hostname': get_config('ldap_init_host'),
