@@ -1,2 +1,4 @@
-consulate==0.6.0
-pydes==2.0.1
+python-consul==1.0.1
+click==6.7
+pyDes==2.0.1
+kubernetes==6.0.0
