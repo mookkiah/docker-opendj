@@ -33,7 +33,6 @@ GLUU_JMX_PORT = os.environ.get("GLUU_JMX_PORT", 1689)
 
 DEFAULT_ADMIN_PW_PATH = "/opt/opendj/.pw"
 
-# consul = Consul(host=GLUU_KV_HOST, port=GLUU_KV_PORT)
 config_manager = ConfigManager()
 
 logger = logging.getLogger("entrypoint")
@@ -361,8 +360,15 @@ def as_boolean(val, default=False):
     return default
 
 
-def register_server(server):
-    config_manager.set("ldap_servers/{}:{}".format(server["host"], server["ldaps_port"]), server)
+def get_ldap_peers():
+    return json.loads(config_manager.get("ldap_peers", "[]"))
+
+
+def register_ldap_peer(hostname):
+    peers = set(get_ldap_peers())
+    # add new hostname
+    peers.add(hostname)
+    config_manager.set("ldap_peers", list(peers))
 
 
 def replicate_from(peer, server):
@@ -371,20 +377,20 @@ def replicate_from(peer, server):
 
     for base_dn in ["o=gluu", "o=site"]:
         logger.info("Enabling OpenDJ replication of {} between {}:{} and {}:{}.".format(
-            base_dn, peer["host"], peer["ldaps_port"], server["host"], server["ldaps_port"],
+            base_dn, peer, GLUU_LDAPS_PORT, server, GLUU_LDAPS_PORT,
         ))
 
         enable_cmd = " ".join([
             "/opt/opendj/bin/dsreplication",
             "enable",
-            "--host1 {}".format(peer["host"]),
-            "--port1 {}".format(peer["admin_port"]),
+            "--host1 {}".format(peer),
+            "--port1 {}".format(GLUU_ADMIN_PORT),
             "--bindDN1 '{}'".format(config_manager.get("ldap_binddn")),
             "--bindPassword1 {}".format(passwd),
-            "--replicationPort1 {}".format(peer["replication_port"]),
+            "--replicationPort1 {}".format(GLUU_REPLICATION_PORT),
             "--secureReplication1",
-            "--host2 {}".format(server["host"]),
-            "--port2 {}".format(server["admin_port"]),
+            "--host2 {}".format(server),
+            "--port2 {}".format(GLUU_ADMIN_PORT),
             "--bindDN2 '{}'".format(config_manager.get("ldap_binddn")),
             "--bindPassword2 {}".format(passwd),
             "--secureReplication2",
@@ -401,7 +407,7 @@ def replicate_from(peer, server):
             logger.warn(err.strip())
 
         logger.info("Initializing OpenDJ replication of {} between {}:{} and {}:{}.".format(
-            base_dn, peer["host"], peer["ldaps_port"], server["host"], server["ldaps_port"],
+            base_dn, peer, GLUU_LDAPS_PORT, server, GLUU_LDAPS_PORT,
         ))
 
         init_cmd = " ".join([
@@ -410,10 +416,10 @@ def replicate_from(peer, server):
             "--baseDN '{}'".format(base_dn),
             "--adminUID admin",
             "--adminPassword {}".format(passwd),
-            "--hostSource {}".format(peer["host"]),
-            "--portSource {}".format(peer["admin_port"]),
-            "--hostDestination {}".format(server["host"]),
-            "--portDestination {}".format(server["admin_port"]),
+            "--hostSource {}".format(peer),
+            "--portSource {}".format(GLUU_ADMIN_PORT),
+            "--hostDestination {}".format(server),
+            "--portDestination {}".format(GLUU_ADMIN_PORT),
             "-X",
             "-n",
             "-Q",
@@ -551,13 +557,7 @@ def ds_context():
 
 
 def main():
-    server = {
-        "host": guess_host_addr(),
-        "ldap_port": GLUU_LDAP_PORT,
-        "ldaps_port": GLUU_LDAPS_PORT,
-        "admin_port": GLUU_ADMIN_PORT,
-        "replication_port": GLUU_REPLICATION_PORT,
-    }
+    server = guess_host_addr()
 
     # the plain-text admin password is not saved in KV storage,
     # but we have the encoded one
@@ -599,48 +599,13 @@ def main():
             exec_cmd("mkdir -p /flag")
             exec_cmd("touch /flag/ldap_initialized")
     else:
-        def _get_peers():
-            GLUU_LDAP_PEERS_LOOKUP = os.environ.get("GLUU_LDAP_PEERS_LOOKUP",
-                                                    "ldap-peers")
-
-            GLUU_RESOLVER_ADDR = os.environ.get("GLUU_RESOLVER_ADDR",
-                                                "127.0.0.11")
-
-            nslookup_proc = subprocess.Popen(
-                shlex.split("nslookup {} {}".format(GLUU_LDAP_PEERS_LOOKUP,
-                                                    GLUU_RESOLVER_ADDR)),
-                stdout=subprocess.PIPE,
-            )
-            tail_proc = subprocess.Popen(
-                shlex.split("tail -n +5"),
-                stdout=subprocess.PIPE,
-                stdin=nslookup_proc.stdout,
-            )
-            awk_proc = subprocess.Popen(
-                shlex.split("""awk -F " " '{print $4}'"""),
-                stdout=subprocess.PIPE,
-                stdin=tail_proc.stdout,
-            )
-            peers = [{
-                "host": line,
-                "ldap_port": GLUU_LDAP_PORT,
-                "ldaps_port": GLUU_LDAPS_PORT,
-                "admin_port": GLUU_ADMIN_PORT,
-                "replication_port": GLUU_REPLICATION_PORT,
-            } for line in awk_proc.communicate()[0].splitlines()]
-            return peers
-
-        # peers = {
-        #     unmerge_path(k): json.loads(v) for k, v in consul.kv.find(merge_path("ldap_servers"), {}).iteritems()
-        #     if unmerge_path(k) != "ldap_servers/{}:{}".format(server["host"], server["ldaps_port"])
-        # }
         with ds_context():
-            for peer in _get_peers():
+            for peer in get_ldap_peers():
                 # skip if peer is current server
-                if peer["host"] == server["host"]:
+                if peer == server:
                     continue
                 # if peer is not active, skip and try another one
-                out, err, code = check_connection(peer["host"], peer["ldaps_port"])
+                out, err, code = check_connection(peer, GLUU_LDAPS_PORT)
                 if code != 0:
                     logger.warn("unable to connect to peer; reason={}".format(err))
                     continue
@@ -648,8 +613,8 @@ def main():
                 replicate_from(peer, server)
                 break
 
-    # # register current server for discovery
-    # register_server(server)
+    # register current server for discovery
+    register_ldap_peer(server)
 
     # post-installation cleanup
     for f in [DEFAULT_ADMIN_PW_PATH, "/opt/opendj/opendj-setup.properties"]:
