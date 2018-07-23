@@ -371,6 +371,23 @@ def register_ldap_peer(hostname):
     config_manager.set("ldap_peers", list(peers))
 
 
+def migrate_ldap_servers():
+    # migrate ``ldap_servers`` to ``ldap_peers``
+    adapter = os.environ.get("GLUU_CONFIG_ADAPTER", "")
+
+    if adapter == "consul":
+        # make unique peers
+        peers = set([])
+
+        for _, server in config_manager.adapter.find("ldap_servers").iteritems():
+            peer = json.loads(server)
+            peers.add(peer["host"])
+
+        if peers:
+            # convert set to list to satisfy ``config_manager.set``
+            config_manager.set("ldap_peers", list(peers))
+
+
 def replicate_from(peer, server):
     passwd = decrypt_text(config_manager.get("encoded_ox_ldap_pw"),
                           config_manager.get("encoded_salt"))
@@ -557,6 +574,9 @@ def ds_context():
 
 
 def main():
+    if not config_manager.get("ldap_peers"):
+        migrate_ldap_servers()
+
     server = guess_host_addr()
 
     # the plain-text admin password is not saved in KV storage,
