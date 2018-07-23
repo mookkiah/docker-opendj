@@ -2,6 +2,12 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 3.1.3_03
+
+Released on July 24th, 2018.
+
+* Added function to migrate `ldap_servers` to `ldap_peers` config automatically.
+
 ## Version 3.1.3_02
 
 Released on July 19th, 2018.
