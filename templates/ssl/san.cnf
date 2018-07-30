@@ -1,0 +1,23 @@
+[req]
+req_extensions = v3_req
+distinguished_name = dn
+
+[dn]
+
+[v3_req]
+
+# Extensions to add to a certificate request
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+%(alt_names)s
+
+# DNS.1 = ldap
+
+# create csr
+# openssl req -new -key ldap.key -out ldap.csr -subj /C=US/ST=TX/L=Austin/CN=single.gluu.local/emailAddress='support@gluu.local' -config ldap-san.cnf
+
+# create crt
+# openssl x509 -req -days 365 -in ldap.csr -signkey ldap.key -out ldap.crt -extensions v3_req -extfile ldap-san.cnf
