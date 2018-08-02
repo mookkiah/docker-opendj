@@ -473,7 +473,6 @@ def check_connection(host, port):
 
 
 def sync_ldap_pkcs12():
-    logger.info("Syncing OpenDJ cert.")
     pkcs = decrypt_text(config_manager.get("ldap_pkcs12_base64"),
                         config_manager.get("encoded_salt"))
 
@@ -590,12 +589,20 @@ def main():
         )
         fw.write(admin_pw)
 
-    # check if LDAP certs need to be updated
-    if not as_boolean(config_manager.get("ldap_altnames_enabled")):
-        salt = config_manager.get("encoded_salt")
+    logger.info("Syncing OpenDJ certs.")
+    sync_ldap_certs()
+    sync_ldap_pkcs12()
 
-        render_san_cnf()
-        generate_ldap_certs()
+    logger.info("Checking certificate's Subject Alt Name (SAN)")
+    san = get_certificate_san("/etc/certs/opendj.crt").replace("DNS:", "")
+
+    if GLUU_CERT_ALT_NAME != san:
+        logger.info("Re-generating OpenDJ certs with SAN support.")
+
+        render_san_cnf(GLUU_CERT_ALT_NAME)
+        regenerate_ldap_certs()
+
+        salt = config_manager.get("encoded_salt")
 
         with open("/etc/certs/{}.pem".format("opendj"), "w") as fw:
             with open("/etc/certs/{}.crt".format("opendj")) as fr:
@@ -615,17 +622,11 @@ def main():
             config_manager.set("ldap_ssl_cacert",
                                encrypt_text(ldap_ssl_cacert, salt))
 
-        generate_ldap_pkcs12()
+        regenerate_ldap_pkcs12()
         # update config
         with open(config_manager.get("ldapTrustStoreFn"), "rb") as fr:
             config_manager.set("ldap_pkcs12_base64",
                                encrypt_text(fr.read(), salt))
-
-        # mark SAN has been enabled
-        config_manager.set("ldap_altnames_enabled", True)
-    else:
-        sync_ldap_certs()
-        sync_ldap_pkcs12()
 
     # install and configure Directory Server
     if not os.path.isfile("/opt/opendj/config/config.ldif"):
@@ -680,22 +681,17 @@ def main():
             pass
 
 
-def render_san_cnf():
-    if GLUU_CERT_ALT_NAME:
-        names = filter(None, GLUU_CERT_ALT_NAME.split(","))
-        alt_names = "\n".join([
-            "DNS.{} = {}".format(i, name) for i, name in enumerate(names, 1)
-        ])
-        ctx = {"alt_names": alt_names}
+def render_san_cnf(name):
+    ctx = {"alt_name": name}
 
-        with open("/opt/templates/ssl/san.cnf") as fr:
-            txt = fr.read() % ctx
+    with open("/opt/templates/ssl/san.cnf") as fr:
+        txt = fr.read() % ctx
 
-            with open("/etc/ssl/san.cnf", "w")as fw:
-                fw.write(txt)
+        with open("/etc/ssl/san.cnf", "w")as fw:
+            fw.write(txt)
 
 
-def generate_ldap_certs():
+def regenerate_ldap_certs():
     suffix = "opendj"
     passwd = decrypt_text(config_manager.get("encoded_ox_ldap_pw"),
                           config_manager.get("encoded_salt"))
@@ -737,7 +733,7 @@ def generate_ldap_certs():
     return "/etc/certs/{}.crt".format(suffix), "/etc/certs/{}.key".format(suffix)
 
 
-def generate_ldap_pkcs12():
+def regenerate_ldap_pkcs12():
     suffix = "opendj"
     passwd = config_manager.get("ldap_truststore_pass")
     hostname = config_manager.get("hostname")
@@ -762,6 +758,20 @@ def encrypt_text(text, key):
                               padmode=pyDes.PAD_PKCS5)
     encrypted_text = cipher.encrypt(b"{}".format(text))
     return base64.b64encode(encrypted_text)
+
+
+def get_certificate_san(certpath):
+    openssl_proc = subprocess.Popen(
+        shlex.split("openssl x509 -text -noout -in {}".format(certpath)),
+        stdout=subprocess.PIPE,
+    )
+    grep_proc = subprocess.Popen(
+        shlex.split("grep DNS"),
+        stdout=subprocess.PIPE,
+        stdin=openssl_proc.stdout,
+    )
+    san = grep_proc.communicate()[0]
+    return san.strip()
 
 
 if __name__ == "__main__":
