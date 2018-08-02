@@ -6,7 +6,8 @@ LABEL maintainer="Gluu Inc. <support@gluu.org>"
 # Alpine packages
 # ===============
 RUN apk update && apk add --no-cache \
-    py-pip
+    py-pip \
+    openssl
 
 # ======
 # OpenDJ

@@ -31,6 +31,8 @@ GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
 GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
 GLUU_JMX_PORT = os.environ.get("GLUU_JMX_PORT", 1689)
 
+GLUU_CERT_ALT_NAME = os.environ.get("GLUU_CERT_ALT_NAME", "")
+
 DEFAULT_ADMIN_PW_PATH = "/opt/opendj/.pw"
 
 config_manager = ConfigManager()
@@ -471,7 +473,6 @@ def check_connection(host, port):
 
 
 def sync_ldap_pkcs12():
-    logger.info("Syncing OpenDJ cert.")
     pkcs = decrypt_text(config_manager.get("ldap_pkcs12_base64"),
                         config_manager.get("encoded_salt"))
 
@@ -588,8 +589,44 @@ def main():
         )
         fw.write(admin_pw)
 
+    logger.info("Syncing OpenDJ certs.")
     sync_ldap_certs()
     sync_ldap_pkcs12()
+
+    logger.info("Checking certificate's Subject Alt Name (SAN)")
+    san = get_certificate_san("/etc/certs/opendj.crt").replace("DNS:", "")
+
+    if GLUU_CERT_ALT_NAME != san:
+        logger.info("Re-generating OpenDJ certs with SAN support.")
+
+        render_san_cnf(GLUU_CERT_ALT_NAME)
+        regenerate_ldap_certs()
+
+        salt = config_manager.get("encoded_salt")
+
+        with open("/etc/certs/{}.pem".format("opendj"), "w") as fw:
+            with open("/etc/certs/{}.crt".format("opendj")) as fr:
+                ldap_ssl_cert = fr.read()
+
+            with open("/etc/certs/{}.key".format("opendj")) as fr:
+                ldap_ssl_key = fr.read()
+
+            ldap_ssl_cacert = "".join([ldap_ssl_cert, ldap_ssl_key])
+            fw.write(ldap_ssl_cacert)
+
+            # update config
+            config_manager.set("ldap_ssl_cert",
+                               encrypt_text(ldap_ssl_cert, salt))
+            config_manager.set("ldap_ssl_key",
+                               encrypt_text(ldap_ssl_key, salt))
+            config_manager.set("ldap_ssl_cacert",
+                               encrypt_text(ldap_ssl_cacert, salt))
+
+        regenerate_ldap_pkcs12()
+        # update config
+        with open(config_manager.get("ldapTrustStoreFn"), "rb") as fr:
+            config_manager.set("ldap_pkcs12_base64",
+                               encrypt_text(fr.read(), salt))
 
     # install and configure Directory Server
     if not os.path.isfile("/opt/opendj/config/config.ldif"):
@@ -642,6 +679,99 @@ def main():
             os.unlink(f)
         except OSError:
             pass
+
+
+def render_san_cnf(name):
+    ctx = {"alt_name": name}
+
+    with open("/opt/templates/ssl/san.cnf") as fr:
+        txt = fr.read() % ctx
+
+        with open("/etc/ssl/san.cnf", "w")as fw:
+            fw.write(txt)
+
+
+def regenerate_ldap_certs():
+    suffix = "opendj"
+    passwd = decrypt_text(config_manager.get("encoded_ox_ldap_pw"),
+                          config_manager.get("encoded_salt"))
+    country_code = config_manager.get("country_code")
+    state = config_manager.get("state")
+    city = config_manager.get("city")
+    org_name = config_manager.get("orgName")
+    domain = config_manager.get("hostname")
+    email = config_manager.get("admin_email")
+
+    # create key with password
+    _, err, retcode = exec_cmd(
+        "openssl genrsa -des3 -out /etc/certs/{}.key.orig "
+        "-passout pass:'{}' 2048".format(suffix, passwd))
+    assert retcode == 0, "Failed to generate SSL key with password; reason={}".format(err)
+
+    # create .key
+    _, err, retcode = exec_cmd(
+        "openssl rsa -in /etc/certs/{0}.key.orig "
+        "-passin pass:'{1}' -out /etc/certs/{0}.key".format(suffix, passwd))
+    assert retcode == 0, "Failed to generate SSL key; reason={}".format(err)
+
+    # create .csr
+    _, err, retcode = exec_cmd(
+        "openssl req -new -key /etc/certs/{0}.key "
+        "-out /etc/certs/{0}.csr "
+        "-config /etc/ssl/san.cnf "
+        "-subj /C='{1}'/ST='{2}'/L='{3}'/O='{4}'/CN='{5}'/emailAddress='{6}'".format(suffix, country_code, state, city, org_name, domain, email))
+    assert retcode == 0, "Failed to generate SSL CSR; reason={}".format(err)
+
+    # create .crt
+    _, err, retcode = exec_cmd(
+        "openssl x509 -req -days 365 -in /etc/certs/{0}.csr "
+        "-extensions v3_req -extfile /etc/ssl/san.cnf "
+        "-signkey /etc/certs/{0}.key -out /etc/certs/{0}.crt".format(suffix))
+    assert retcode == 0, "Failed to generate SSL cert; reason={}".format(err)
+
+    # return the paths
+    return "/etc/certs/{}.crt".format(suffix), "/etc/certs/{}.key".format(suffix)
+
+
+def regenerate_ldap_pkcs12():
+    suffix = "opendj"
+    passwd = config_manager.get("ldap_truststore_pass")
+    hostname = config_manager.get("hostname")
+
+    # Convert key to pkcs12
+    cmd = " ".join([
+        "openssl",
+        "pkcs12",
+        "-export",
+        "-inkey /etc/certs/{}.key".format(suffix),
+        "-in /etc/certs/{}.crt".format(suffix),
+        "-out /etc/certs/{}.pkcs12".format(suffix),
+        "-name {}".format(hostname),
+        "-passout pass:{}".format(passwd),
+    ])
+    _, err, retcode = exec_cmd(cmd)
+    assert retcode == 0, "Failed to generate PKCS12 file; reason={}".format(err)
+
+
+def encrypt_text(text, key):
+    cipher = pyDes.triple_des(b"{}".format(key), pyDes.ECB,
+                              padmode=pyDes.PAD_PKCS5)
+    encrypted_text = cipher.encrypt(b"{}".format(text))
+    return base64.b64encode(encrypted_text)
+
+
+def get_certificate_san(certpath):
+    openssl_proc = subprocess.Popen(
+        shlex.split("openssl x509 -text -noout -in {}".format(certpath)),
+        stdout=subprocess.PIPE,
+    )
+    grep_proc = subprocess.Popen(
+        shlex.split("grep DNS"),
+        stdout=subprocess.PIPE,
+        stdin=openssl_proc.stdout,
+    )
+    san = grep_proc.communicate()[0]
+    return san.strip()
 
 
 if __name__ == "__main__":
