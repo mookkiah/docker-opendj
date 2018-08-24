@@ -38,8 +38,8 @@ COPY schemas/101-ox.ldif /opt/opendj/template/config/schema/
 COPY schemas/77-customAttributes.ldif /opt/opendj/template/config/schema/
 COPY templates /opt/templates
 COPY scripts /opt/scripts
-RUN chmod +x /opt/scripts/entrypoint.rhel.sh
-RUN chmod +x /opt/scripts/wait-for-it.rhel.sh
+RUN chmod +x /opt/scripts/entrypoint.sh
+RUN chmod +x /opt/scripts/wait-for-it.sh
 
 ENV GLUU_CONFIG_ADAPTER consul
 ENV GLUU_CONSUL_HOST localhost
@@ -67,4 +67,4 @@ EXPOSE 1636
 EXPOSE 8989
 EXPOSE 4444
 
-CMD ["/opt/scripts/wait-for-it.rhel.sh", "/opt/scripts/entrypoint.rhel.sh"]
+CMD ["/opt/scripts/wait-for-it.sh", "/opt/scripts/entrypoint.sh"]
