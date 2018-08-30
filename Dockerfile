@@ -20,6 +20,14 @@ RUN wget -q "$OPENDJ_DOWNLOAD_URL" -P /tmp \
     && unzip -qq /tmp/opendj-server-legacy-${OPENDJ_VERSION}.zip -d /opt \
     && rm -f /tmp/opendj-server-legacy-${OPENDJ_VERSION}.zip
 
+# ====
+# Tini
+# ====
+
+ENV TINI_VERSION v0.18.0
+RUN wget -q https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-static -O /usr/bin/tini \
+    && chmod +x /usr/bin/tini
+
 # ======
 # Python
 # ======
@@ -64,4 +72,5 @@ EXPOSE 1636
 EXPOSE 8989
 EXPOSE 4444
 
+ENTRYPOINT ["tini", "--"]
 CMD ["/opt/scripts/wait-for-it", "/opt/scripts/entrypoint.sh"]
