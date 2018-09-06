@@ -201,6 +201,8 @@ def render_ldif():
         'oxauth_client_id': config_manager.get('oxauth_client_id'),
         'oxauthClient_encoded_pw': config_manager.get('oxauthClient_encoded_pw'),
         'hostname': config_manager.get('hostname'),
+        'idp_client_id': config_manager.get('idp_client_id'),
+        'idpClient_encoded_pw': config_manager.get('idpClient_encoded_pw'),
 
         # configuration.ldif
         'oxauth_config_base64': config_manager.get('oxauth_config_base64'),
@@ -219,6 +221,8 @@ def render_ldif():
         'passport_rs_client_base64_jwks': config_manager.get('passport_rs_client_base64_jwks'),
         'passport_rp_client_id': config_manager.get('passport_rp_client_id'),
         'passport_rp_client_base64_jwks': config_manager.get('passport_rp_client_base64_jwks'),
+        "passport_rp_client_jks_fn": config_manager.get("passport_rp_client_jks_fn"),
+        "passport_rp_client_jks_pass": config_manager.get("passport_rp_client_jks_pass"),
 
         # people.ldif
         "encoded_ldap_pw": config_manager.get('encoded_ldap_pw'),
@@ -260,9 +264,9 @@ def render_ldif():
         "person_authentication_samlpassportauthenticator": config_manager.get("person_authentication_samlpassportauthenticator"),
         "consent_gathering_consentgatheringsample": config_manager.get("consent_gathering_consentgatheringsample"),
 
-        # scripts_cred_manager
-        "person_authentication_credmanager": config_manager.get("person_authentication_credmanager"),
-        "client_registration_credmanager": config_manager.get("client_registration_credmanager"),
+        # scripts_casa
+        "person_authentication_casa": config_manager.get("person_authentication_casa"),
+        "client_registration_casa": config_manager.get("client_registration_casa"),
     }
 
     ldif_template_base = '/opt/templates/ldif'
@@ -292,7 +296,7 @@ def import_ldif():
         'groups.ldif',
         'o_site.ldif',
         'scripts.ldif',
-        'scripts_cred_manager.ldif',
+        'scripts_casa.ldif',
         'configuration.ldif',
         'scim.ldif',
         'asimba.ldif',
