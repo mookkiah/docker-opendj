@@ -628,6 +628,14 @@ def main():
             config_manager.set("ldap_pkcs12_base64",
                                encrypt_text(fr.read(), salt))
 
+    if (os.path.isfile("/opt/opendj/config/config.ldif") and
+            not os.path.isfile("/flag/ldap_upgraded")):
+        logger.info("Trying to upgrade OpenDJ server")
+        _, err, retcode = exec_cmd("/opt/opendj/upgrade --acceptLicense")
+        assert retcode == 0, "Failed to upgrade OpenDJ; reason={}".format(err)
+        exec_cmd("mkdir -p /flag")
+        exec_cmd("touch /flag/ldap_upgraded")
+
     # install and configure Directory Server
     if not os.path.isfile("/opt/opendj/config/config.ldif"):
         install_opendj()

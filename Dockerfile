@@ -12,7 +12,7 @@ RUN apk update && apk add --no-cache \
 # ======
 # OpenDJ
 # ======
-ENV OPENDJ_VERSION 3.0.0.gluu-SNAPSHOT
+ENV OPENDJ_VERSION 3.0.1.gluu
 ENV OPENDJ_DOWNLOAD_URL http://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${OPENDJ_VERSION}/opendj-server-legacy-${OPENDJ_VERSION}.zip
 
 RUN wget -q "$OPENDJ_DOWNLOAD_URL" -P /tmp \
