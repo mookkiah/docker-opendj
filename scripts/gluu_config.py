@@ -40,19 +40,19 @@ GLUU_CONSUL_VERIFY = os.environ.get("GLUU_CONSUL_VERIFY", False)
 
 # abspath to Consul CA cert file
 GLUU_CONSUL_CACERT_FILE = os.environ.get("GLUU_CONSUL_CACERT_FILE",
-                                         "/run/secrets/consul_cacert.pem")
+                                         "/etc/certs/consul_ca.crt")
 
 # abspath to Consul cert file
 GLUU_CONSUL_CERT_FILE = os.environ.get("GLUU_CONSUL_CERT_FILE",
-                                       "/run/secrets/consul_client.crt")
+                                       "/etc/certs/consul_client.crt")
 
 # abspath to Consul key file
 GLUU_CONSUL_KEY_FILE = os.environ.get("GLUU_CONSUL_KEY_FILE",
-                                      "/run/secrets/consul_client.key")
+                                      "/etc/certs/consul_client.key")
 
 # abspath to Consul token file
 GLUU_CONSUL_TOKEN_FILE = os.environ.get("GLUU_CONSUL_TOKEN_FILE",
-                                        "/run/secrets/consul_token")
+                                        "/etc/certs/consul_token")
 
 # the namespace used for storing configmap
 GLUU_KUBERNETES_NAMESPACE = os.environ.get("GLUU_KUBERNETES_NAMESPACE",
