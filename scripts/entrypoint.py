@@ -263,6 +263,7 @@ def render_ldif():
         "uma_rpt_policy_umaclientauthzrptpolicy": config_manager.get("uma_rpt_policy_umaclientauthzrptpolicy"),
         "person_authentication_samlpassportauthenticator": config_manager.get("person_authentication_samlpassportauthenticator"),
         "consent_gathering_consentgatheringsample": config_manager.get("consent_gathering_consentgatheringsample"),
+        "person_authentication_thumbsigninexternalauthenticator": config_manager.get("person_authentication_thumbsigninexternalauthenticator"),
 
         # scripts_casa
         "person_authentication_casa": config_manager.get("person_authentication_casa"),

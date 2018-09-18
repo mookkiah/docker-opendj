@@ -1,4 +1,4 @@
-FROM gluufederation/base-openjdk:jre-alpine
+FROM openjdk:8-jre-alpine
 
 LABEL maintainer="Gluu Inc. <support@gluu.org>"
 
