@@ -142,10 +142,14 @@ def configure_opendj():
         'set-log-publisher-prop --publisher-name "File-Based Audit Logger" --set enabled:true',
         'create-backend --backend-name site --set base-dn:o=site --type je --set enabled:true',
         'set-connection-handler-prop --handler-name "LDAP Connection Handler" --set enabled:false',
+        'set-connection-handler-prop --handler-name "LDAPS Connection Handler" --set enabled:true --set listen-address:0.0.0.0',
+        'set-administration-connector-prop --set listen-address:0.0.0.0',
         'set-access-control-handler-prop --remove {}'.format(opendj_prop_name),
         'set-global-configuration-prop --set reject-unauthenticated-requests:true',
         'set-password-policy-prop --policy-name "Default Password Policy" --set default-password-storage-scheme:"Salted SHA-512"',
-        'set-crypto-manager-prop --set ssl-encryption:true',
+        'create-plugin --plugin-name "Unique mail address" --type unique-attribute --set enabled:true --set base-dn:o=gluu --set type:mail',
+        'create-plugin --plugin-name "Unique uid entry" --type unique-attribute --set enabled:true --set base-dn:o=gluu --set type:uid',
+        # 'set-crypto-manager-prop --set ssl-encryption:true',
     ]
     hostname = guess_host_addr()
     binddn = config_manager.get("ldap_binddn")
