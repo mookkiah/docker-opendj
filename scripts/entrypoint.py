@@ -640,8 +640,14 @@ def main():
     if (os.path.isfile("/opt/opendj/config/config.ldif") and
             not os.path.isfile("/flag/ldap_upgraded")):
         logger.info("Trying to upgrade OpenDJ server")
+
+        # backup old buildinfo
+        exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-3.0.0")
         _, err, retcode = exec_cmd("/opt/opendj/upgrade --acceptLicense")
         assert retcode == 0, "Failed to upgrade OpenDJ; reason={}".format(err)
+
+        # backup current buildinfo
+        exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-3.0.1")
         exec_cmd("mkdir -p /flag")
         exec_cmd("touch /flag/ldap_upgraded")
 
