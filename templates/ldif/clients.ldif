@@ -19,10 +19,33 @@ oxAuthScope: inum=%(inumOrg)s!0009!764C,ou=scopes,o=%(inumOrg)s,o=gluu
 oxAuthRedirectURI: https://%(hostname)s/identity/scim/auth
 oxAuthRedirectURI: https://%(hostname)s/identity/authentication/authcode
 oxAuthRedirectURI: https://%(hostname)s/identity/authentication/getauthcode
-oxAuthRedirectURI: https://%(hostname)s/idp/auth-code.jsp
 oxAuthRedirectURI: https://%(hostname)s/cas/login
 oxAuthRedirectURI: https://%(hostname)s/oxauth/restv1/uma/gather_claims?authentication=true
 oxClaimRedirectURI: https://%(hostname)s/oxauth/restv1/uma/gather_claims
+oxAuthPostLogoutRedirectURI: https://%(hostname)s/identity/authentication/finishlogout
+oxAuthTokenEndpointAuthMethod: client_secret_basic
+oxAuthIdTokenSignedResponseAlg: HS256
+oxAuthTrustedClient: true
+oxAuthSubjectType: public
+oxPersistClientAuthorizations: false
+oxAuthLogoutSessionRequired: true
+
+
+dn: inum=%(idp_client_id)s,ou=clients,o=%(inumOrg)s,o=gluu
+objectClass: oxAuthClient
+objectClass: top
+displayName: IDP client
+inum: %(idp_client_id)s
+oxAuthClientSecret: %(idpClient_encoded_pw)s
+oxAuthAppType: web
+oxAuthResponseType: code
+oxAuthGrantType: authorization_code
+oxAuthGrantType: refresh_token
+oxAuthScope: inum=%(inumOrg)s!0009!F0C4,ou=scopes,o=%(inumOrg)s,o=gluu
+oxAuthScope: inum=%(inumOrg)s!0009!10B2,ou=scopes,o=%(inumOrg)s,o=gluu
+oxAuthScope: inum=%(inumOrg)s!0009!764C,ou=scopes,o=%(inumOrg)s,o=gluu
+oxAuthRedirectURI: https://%(hostname)s/idp/Authn/oxAuth
+oxAuthPostLogoutRedirectURI: https://%(hostname)s/idp/profile/Logout
 oxAuthPostLogoutRedirectURI: https://%(hostname)s/identity/authentication/finishlogout
 oxAuthTokenEndpointAuthMethod: client_secret_basic
 oxAuthIdTokenSignedResponseAlg: HS256
