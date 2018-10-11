@@ -38,14 +38,6 @@ RUN pip install -U pip \
 # ====
 # misc
 # ====
-RUN mkdir -p /etc/certs
-COPY schemas/96-eduperson.ldif /opt/opendj/template/config/schema/
-COPY schemas/101-ox.ldif /opt/opendj/template/config/schema/
-COPY schemas/77-customAttributes.ldif /opt/opendj/template/config/schema/
-COPY templates /opt/templates
-COPY scripts /opt/scripts
-RUN chmod +x /opt/scripts/entrypoint.sh
-RUN chmod +x /opt/scripts/wait-for-it.sh
 
 EXPOSE 1636
 EXPOSE 8989
