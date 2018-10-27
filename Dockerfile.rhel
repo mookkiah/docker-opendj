@@ -1,18 +1,19 @@
 FROM registry.access.redhat.com/rhel7-minimal
 
-LABEL maintainer="Gluu Inc. <support@gluu.org>"
-
 # =============
 # RHEL packages
 # =============
-RUN microdnf --enablerepo=rhel-server-rhscl-7-rpms --enablerepo=rhel-7-server-rpms install \
-    python27-python-pip openssl wget unzip java-1.8.0-openjdk-headless net-tools bind-utils iputils \
-    && microdnf update \
+
+RUN REPOLIST=rhel-7-server-rpms,rhel-server-rhscl-7-rpms \
+    INSTALL_PKGS="python27-python-pip openssl wget unzip java-1.8.0-openjdk-headless net-tools bind-utils iputils shadow-utils" \
+    && microdnf -y update --enablerepo rhel-7-server-rpms --enablerepo rhel-server-rhscl-7-rpms --setopt=tsflags=nodocs \
+    && microdnf -y install --enablerepo rhel-7-server-rpms --enablerepo rhel-server-rhscl-7-rpms --setopt=tsflags=nodocs ${INSTALL_PKGS} \
     && microdnf clean all
 
 # ======
 # OpenDJ
 # ======
+
 ENV OPENDJ_VERSION 3.0.1.gluu
 ENV OPENDJ_DOWNLOAD_URL http://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${OPENDJ_VERSION}/opendj-server-legacy-${OPENDJ_VERSION}.zip
 
@@ -32,6 +33,7 @@ RUN wget -q https://github.com/krallin/tini/releases/download/${TINI_VERSION}/ti
 # ======
 # Python
 # ======
+
 COPY requirements.txt /tmp/requirements.txt
 RUN source scl_source enable python27 \
     && pip install -U pip \
@@ -40,6 +42,14 @@ RUN source scl_source enable python27 \
 # ====
 # misc
 # ====
+
+LABEL name="OpenDJ" \
+    maintainer="Gluu Inc. <support@gluu.org>" \
+    vendor="Gluu Federation" \
+    version="3.1.4" \
+    release="01" \
+    summary="Gluu's customized OpenDJ" \
+    description="Gluu OpenDJ server and tools"
 
 EXPOSE 1636
 EXPOSE 8989
@@ -74,7 +84,8 @@ ENV GLUU_REPLICATION_PORT 8989
 ENV GLUU_JMX_PORT 1689
 ENV OPENDJ_JAVA_HOME /usr/lib/jvm/jre
 
-RUN mkdir -p /etc/certs
+RUN mkdir -p /etc/certs /flag
+COPY LICENSE /licenses
 COPY schemas/96-eduperson.ldif /opt/opendj/template/config/schema/
 COPY schemas/101-ox.ldif /opt/opendj/template/config/schema/
 COPY schemas/77-customAttributes.ldif /opt/opendj/template/config/schema/
@@ -83,9 +94,16 @@ COPY scripts /opt/scripts
 RUN chmod +x /opt/scripts/entrypoint.sh
 RUN chmod +x /opt/scripts/wait-for-it.sh
 
-# allow root group to write files to directories below
-RUN chgrp -R 0 /etc/certs && chmod -R g=u /etc/certs \
-    && chgrp -R 0 /opt/opendj && chmod -R g=u /opt/opendj
+# create ldap user
+RUN useradd -ms /bin/sh ldap
+# adjust ownership
+RUN chown -R root:ldap /etc/certs \
+    && chown -R root:ldap /etc/ssl \
+    && chown -R ldap:ldap /opt/opendj \
+    && chown -R ldap:ldap /flag \
+    && chmod -R g+w /etc/certs \
+    && chmod -R g+w /etc/ssl
 
+USER ldap
 ENTRYPOINT ["tini", "--"]
 CMD ["/opt/scripts/wait-for-it.sh", "/opt/scripts/entrypoint.sh"]
