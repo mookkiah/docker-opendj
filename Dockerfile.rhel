@@ -84,7 +84,7 @@ ENV GLUU_REPLICATION_PORT 8989
 ENV GLUU_JMX_PORT 1689
 ENV OPENDJ_JAVA_HOME /usr/lib/jvm/jre
 
-RUN mkdir -p /etc/certs /flag
+RUN mkdir -p /etc/certs /flag /deploy
 COPY LICENSE /licenses
 COPY schemas/96-eduperson.ldif /opt/opendj/template/config/schema/
 COPY schemas/101-ox.ldif /opt/opendj/template/config/schema/
@@ -101,6 +101,7 @@ RUN chown -R root:ldap /etc/certs \
     && chown -R root:ldap /etc/ssl \
     && chown -R ldap:ldap /opt/opendj \
     && chown -R ldap:ldap /flag \
+    && chown -R ldap:ldap /deploy \
     && chmod -R g+w /etc/certs \
     && chmod -R g+w /etc/ssl
 
