@@ -84,8 +84,11 @@ ENV GLUU_REPLICATION_PORT 8989
 ENV GLUU_JMX_PORT 1689
 ENV OPENDJ_JAVA_HOME /usr/lib/jvm/jre
 
+# license
+RUN mkdir -p /licenses
+COPY LICENSE /licenses/MIT.txt
+
 RUN mkdir -p /etc/certs /flag /deploy
-COPY LICENSE /licenses
 COPY schemas/96-eduperson.ldif /opt/opendj/template/config/schema/
 COPY schemas/101-ox.ldif /opt/opendj/template/config/schema/
 COPY schemas/77-customAttributes.ldif /opt/opendj/template/config/schema/
