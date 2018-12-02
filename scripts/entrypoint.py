@@ -268,10 +268,6 @@ def render_ldif():
         "person_authentication_samlpassportauthenticator": config_manager.get("person_authentication_samlpassportauthenticator"),
         "consent_gathering_consentgatheringsample": config_manager.get("consent_gathering_consentgatheringsample"),
         "person_authentication_thumbsigninexternalauthenticator": config_manager.get("person_authentication_thumbsigninexternalauthenticator"),
-
-        # scripts_casa
-        "person_authentication_casa": config_manager.get("person_authentication_casa"),
-        "client_registration_casa": config_manager.get("client_registration_casa"),
     }
 
     ldif_template_base = '/opt/templates/ldif'
@@ -301,7 +297,6 @@ def import_ldif():
         'groups.ldif',
         'o_site.ldif',
         'scripts.ldif',
-        'scripts_casa.ldif',
         'configuration.ldif',
         'scim.ldif',
         'asimba.ldif',
