@@ -124,6 +124,11 @@ def install_opendj():
     if code and err:
         logger.warn(err)
 
+    if os.environ.get("JAVA_VERSION", "") >= "1.8.0":
+        with open("/opt/opendj/config/java.properties", "a") as f:
+            f.write("\nstatus.java-args=-Xms8m -client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true"
+                    "\ndsreplication.java-args=-Xms8m -client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true")
+
 
 def run_dsjavaproperties():
     _, err, code = exec_cmd("/opt/opendj/bin/dsjavaproperties")
