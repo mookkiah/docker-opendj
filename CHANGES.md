@@ -2,6 +2,12 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 3.1.4_03
+
+Released on December 11th, 2018.
+
+* Added patches to `java.properties` to disable endpoint identification.
+
 ## Version 3.1.4_02
 
 Released on December 2nd, 2018.
