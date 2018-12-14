@@ -7,7 +7,8 @@ LABEL maintainer="Gluu Inc. <support@gluu.org>"
 # ===============
 RUN apk update && apk add --no-cache \
     py-pip \
-    openssl
+    openssl \
+    shadow
 
 # ======
 # OpenDJ
@@ -71,13 +72,30 @@ ENV GLUU_ADMIN_PORT 4444
 ENV GLUU_REPLICATION_PORT 8989
 ENV GLUU_JMX_PORT 1689
 
-RUN mkdir -p /etc/certs
+RUN mkdir -p /etc/certs /flag /deploy
 COPY schemas/96-eduperson.ldif /opt/opendj/template/config/schema/
 COPY schemas/101-ox.ldif /opt/opendj/template/config/schema/
 COPY schemas/77-customAttributes.ldif /opt/opendj/template/config/schema/
 COPY templates /opt/templates
 COPY scripts /opt/scripts
 RUN chmod +x /opt/scripts/entrypoint.sh
+
+# create ldap user
+RUN useradd -ms /bin/sh --uid 1000 ldap \
+    && usermod -a -G root ldap
+
+# adjust ownership
+RUN chown -R 1000:1000 /opt/opendj \
+    && chown -R 1000:1000 /flag \
+    && chown -R 1000:1000 /deploy \
+    && chgrp -R 0 /opt/opendj && chmod -R g=u /opt/opendj \
+    && chgrp -R 0 /flag && chmod -R g=u /flag \
+    && chgrp -R 0 /deploy && chmod -R g=u /deploy \
+    && chgrp -R 0 /etc/certs && chmod -R g=u /etc/certs \
+    && chgrp -R 0 /etc/ssl && chmod -R g=u /etc/ssl
+
+# run as non-root user
+USER 1000
 
 ENTRYPOINT ["tini", "--"]
 CMD ["/opt/scripts/wait-for-it", "/opt/scripts/entrypoint.sh"]
