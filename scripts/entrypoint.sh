@@ -10,7 +10,11 @@ if [ ! -f /deploy/touched ]; then
     if [ -f /touched ]; then
         mv /touched /deploy/touched
     else
-        python /opt/scripts/entrypoint.py
+        if [ -f /etc/redhat-release ]; then
+            source scl_source enable ptyhon27 && python /opt/scripts/entrypoint.py
+        else
+            python /opt/scripts/entrypoint.py
+        fi
         touch /deploy/touched
     fi
 fi
