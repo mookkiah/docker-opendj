@@ -1,7 +1,10 @@
+import argparse
 import logging
 import os
 import sys
 import time
+
+from gluulib import get_manager
 
 logger = logging.getLogger("wait_for")
 logger.setLevel(logging.INFO)
@@ -47,7 +50,9 @@ def wait_for_secret(manager, max_wait_time, sleep_duration):
     sys.exit(1)
 
 
-def wait_for(manager):
+def wait_for(manager, deps=None):
+    deps = deps or []
+
     try:
         max_wait_time = int(os.environ.get("GLUU_WAIT_MAX_TIME", 300))
     except ValueError:
@@ -58,5 +63,22 @@ def wait_for(manager):
     except ValueError:
         sleep_duration = 5
 
-    wait_for_config(manager, max_wait_time, sleep_duration)
-    wait_for_secret(manager, max_wait_time, sleep_duration)
+    if "config" in deps:
+        wait_for_config(manager, max_wait_time, sleep_duration)
+
+    if "secret" in deps:
+        wait_for_secret(manager, max_wait_time, sleep_duration)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--deps", help="Comma-separated dependencies to wait for.")
+    args = parser.parse_args()
+
+    deps = set(filter(
+        None,
+        [dep.strip() for dep in args.deps.split(",") if dep]
+    ))
+
+    manager = get_manager()
+    wait_for(manager, deps)

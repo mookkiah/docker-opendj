@@ -13,7 +13,6 @@ from contextlib import contextmanager
 import pyDes
 
 from gluulib import get_manager
-from wait_for import wait_for
 
 GLUU_CACHE_TYPE = os.environ.get("GLUU_CACHE_TYPE", 'IN_MEMORY')
 GLUU_REDIS_URL = os.environ.get('GLUU_REDIS_URL', 'localhost:6379')
@@ -803,5 +802,4 @@ def get_certificate_san(certpath):
 
 
 if __name__ == "__main__":
-    wait_for(manager)
     main()
