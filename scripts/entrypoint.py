@@ -587,6 +587,29 @@ def ds_context():
         exec_cmd("/opt/opendj/bin/stop-ds --quiet")
 
 
+def run_upgrade():
+    # check if we need to upgrade from 3.0.0 to 3.0.1
+    if os.path.isfile("/opt/opendj/config/buildinfo"):
+        buildinfo = "3.0.1"
+
+        # example of buildinfo `3.0.1.c5ad2e4846d8aeb501ffdfe5ae2dfd35136dfa68`
+        with open("/opt/opendj/config/buildinfo") as f:
+            old_buildinfo = ".".join([
+                num for num in f.read().split(".") if num.isdigit()
+            ])
+
+            if old_buildinfo < buildinfo:
+                logger.info("Trying to upgrade OpenDJ server")
+
+                # backup old buildinfo
+                exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{}".format(old_buildinfo))
+                _, err, retcode = exec_cmd("/opt/opendj/upgrade --acceptLicense")
+                assert retcode == 0, "Failed to upgrade OpenDJ; reason={}".format(err)
+
+                # backup current buildinfo
+                exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{}".format(buildinfo))
+
+
 def main():
     if not manager.config.get("ldap_peers"):
         migrate_ldap_servers()
@@ -641,19 +664,7 @@ def main():
             manager.secret.set("ldap_pkcs12_base64",
                                encrypt_text(fr.read(), salt))
 
-    if (os.path.isfile("/opt/opendj/config/config.ldif") and
-            not os.path.isfile("/flag/ldap_upgraded")):
-        logger.info("Trying to upgrade OpenDJ server")
-
-        # backup old buildinfo
-        exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-3.0.0")
-        _, err, retcode = exec_cmd("/opt/opendj/upgrade --acceptLicense")
-        assert retcode == 0, "Failed to upgrade OpenDJ; reason={}".format(err)
-
-        # backup current buildinfo
-        exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-3.0.1")
-        exec_cmd("mkdir -p /flag")
-        exec_cmd("touch /flag/ldap_upgraded")
+    run_upgrade()
 
     # install and configure Directory Server
     if not os.path.isfile("/opt/opendj/config/config.ldif"):
