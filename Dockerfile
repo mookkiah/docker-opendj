@@ -106,22 +106,22 @@ COPY templates /opt/templates
 COPY scripts /opt/scripts
 RUN chmod +x /opt/scripts/entrypoint.sh
 
-# create ldap user
-RUN useradd -ms /bin/sh --uid 1000 ldap \
-    && usermod -a -G root ldap
+# # create ldap user
+# RUN useradd -ms /bin/sh --uid 1000 ldap \
+#     && usermod -a -G root ldap
 
-# adjust ownership
-RUN chown -R 1000:1000 /opt/opendj \
-    && chown -R 1000:1000 /flag \
-    && chown -R 1000:1000 /deploy \
-    && chgrp -R 0 /opt/opendj && chmod -R g=u /opt/opendj \
-    && chgrp -R 0 /flag && chmod -R g=u /flag \
-    && chgrp -R 0 /deploy && chmod -R g=u /deploy \
-    && chgrp -R 0 /etc/certs && chmod -R g=u /etc/certs \
-    && chgrp -R 0 /etc/ssl && chmod -R g=u /etc/ssl
+# # adjust ownership
+# RUN chown -R 1000:1000 /opt/opendj \
+#     && chown -R 1000:1000 /flag \
+#     && chown -R 1000:1000 /deploy \
+#     && chgrp -R 0 /opt/opendj && chmod -R g=u /opt/opendj \
+#     && chgrp -R 0 /flag && chmod -R g=u /flag \
+#     && chgrp -R 0 /deploy && chmod -R g=u /deploy \
+#     && chgrp -R 0 /etc/certs && chmod -R g=u /etc/certs \
+#     && chgrp -R 0 /etc/ssl && chmod -R g=u /etc/ssl
 
-# run as non-root user
-USER 1000
+# # run as non-root user
+# USER 1000
 
 ENTRYPOINT ["tini", "-g", "--"]
 CMD ["/opt/scripts/entrypoint.sh"]
