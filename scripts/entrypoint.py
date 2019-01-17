@@ -141,11 +141,13 @@ def configure_opendj():
 
     opendj_prop_name = 'global-aci:\'(targetattr!="userPassword||authPassword||debugsearchindex||changes||changeNumber||changeType||changeTime||targetDN||newRDN||newSuperior||deleteOldRDN")(version 3.0; acl "Anonymous read access"; allow (read,search,compare) userdn="ldap:///anyone";)\''
     config_mods = [
+        'set-backend-prop --backend-name userRoot --set db-cache-percent:70',
         'set-global-configuration-prop --set single-structural-objectclass-behavior:accept',
         'set-attribute-syntax-prop --syntax-name "Directory String" --set allow-zero-length-values:true',
         'set-password-policy-prop --policy-name "Default Password Policy" --set allow-pre-encoded-passwords:true',
         'set-log-publisher-prop --publisher-name "File-Based Audit Logger" --set enabled:true',
-        'create-backend --backend-name site --set base-dn:o=site --type je --set enabled:true',
+        'create-backend --backend-name site --set base-dn:o=site --type je --set enabled:true --set db-cache-percent:20',
+        'create-backend --backend-name metric --set base-dn:o=metric --type je --set enabled:true --set db-cache-percent:10',
         'set-connection-handler-prop --handler-name "LDAP Connection Handler" --set enabled:false',
         'set-connection-handler-prop --handler-name "LDAPS Connection Handler" --set enabled:true --set listen-address:0.0.0.0',
         'set-administration-connector-prop --set listen-address:0.0.0.0',
@@ -241,6 +243,7 @@ def render_ldif():
         'scim_rs_client_base64_jwks': manager.secret.get('scim_rs_client_base64_jwks'),
         'scim_rp_client_id': manager.config.get('scim_rp_client_id'),
         'scim_rp_client_base64_jwks': manager.secret.get('scim_rp_client_base64_jwks'),
+        'scim_resource_oxid': manager.config.get('scim_resource_oxid'),
 
         # scripts.ldif
         "person_authentication_usercertexternalauthenticator": manager.config.get("person_authentication_usercertexternalauthenticator"),
@@ -273,6 +276,9 @@ def render_ldif():
         "person_authentication_samlpassportauthenticator": manager.config.get("person_authentication_samlpassportauthenticator"),
         "consent_gathering_consentgatheringsample": manager.config.get("consent_gathering_consentgatheringsample"),
         "person_authentication_thumbsigninexternalauthenticator": manager.config.get("person_authentication_thumbsigninexternalauthenticator"),
+        "resource_owner_password_credentials_resource_owner_password_credentials": manager.config.get("resource_owner_password_credentials_resource_owner_password_credentials"),
+        "person_authentication_fido2externalauthenticator": manager.config.get("person_authentication_fido2externalauthenticator"),
+        "introspection_introspection": manager.config.get("introspection_introspection"),
     }
 
     ldif_template_base = '/opt/templates/ldif'
@@ -308,6 +314,7 @@ def import_ldif():
         'passport.ldif',
         'oxpassport-config.ldif',
         'oxidp.ldif',
+        'o_metric.ldif',
     ])
 
     for ldif_file_fn in ldif_files:
@@ -530,6 +537,7 @@ def oxtrust_config():
         'encoded_ox_ldap_pw': manager.secret.get('encoded_ox_ldap_pw'),
         'ldap_hostname': manager.config.get('ldap_init_host'),
         'ldaps_port': manager.config.get('ldap_init_port'),
+        'scim_resource_oxid': manager.config.get('scim_resource_oxid'),
     }
 
     oxtrust_template_base = '/opt/templates/oxtrust'
