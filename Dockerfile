@@ -5,6 +5,7 @@ LABEL maintainer="Gluu Inc. <support@gluu.org>"
 # ===============
 # Alpine packages
 # ===============
+
 RUN apk update && apk add --no-cache \
     py-pip \
     openssl \
@@ -13,6 +14,7 @@ RUN apk update && apk add --no-cache \
 # ======
 # OpenDJ
 # ======
+
 ENV OPENDJ_VERSION 3.0.1.gluu
 ENV OPENDJ_DOWNLOAD_URL http://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${OPENDJ_VERSION}/opendj-server-legacy-${OPENDJ_VERSION}.zip
 
@@ -32,6 +34,7 @@ RUN wget -q https://github.com/krallin/tini/releases/download/${TINI_VERSION}/ti
 # ======
 # Python
 # ======
+
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install -U pip \
     && pip install -r /tmp/requirements.txt --no-cache-dir
@@ -47,6 +50,7 @@ EXPOSE 4444
 # ==========
 # Config ENV
 # ==========
+
 ENV GLUU_CONFIG_ADAPTER consul
 ENV GLUU_CONFIG_CONSUL_HOST localhost
 ENV GLUU_CONFIG_CONSUL_PORT 8500
@@ -65,6 +69,7 @@ ENV GLUU_CONFIG_KUBERNETES_USE_KUBE_CONFIG false
 # ==========
 # Secret ENV
 # ==========
+
 ENV GLUU_SECRET_ADAPTER vault
 ENV GLUU_SECRET_VAULT_SCHEME http
 ENV GLUU_SECRET_VAULT_HOST localhost
@@ -98,6 +103,8 @@ ENV GLUU_LDAPS_PORT 1636
 ENV GLUU_ADMIN_PORT 4444
 ENV GLUU_REPLICATION_PORT 8989
 ENV GLUU_JMX_PORT 1689
+ENV GLUU_WAIT_MAX_TIME 300
+ENV GLUU_WAIT_SLEEP_DURATION 5
 
 RUN mkdir -p /etc/certs /flag /deploy
 COPY schemas/96-eduperson.ldif /opt/opendj/template/config/schema/
