@@ -676,8 +676,35 @@ def main():
 
     # install and configure Directory Server
     if not os.path.isfile("/opt/opendj/config/config.ldif"):
-        install_opendj()
 
+        # When mounting certain volumes, OpenDJ installation will fail to install 
+        # as the mounted volume may have some residual information for some reason
+        # (i.e. Amazon ElasticBlockStorage's "lost+found" directory). This only occurs on the first installation
+        # Otherwise the volume can be used as a successfully deployed persistent
+        # disk. Below we will check if there is an `/opt/opendj/config/schema` directory with files
+        # signalling that OpenDJ has already been successfully deployed and will launch as expected.
+
+        if not os.path.isdir("/opt/opendj/config/schema"):
+            for obj in os.listdir("/opt/opendj/config/"):
+                path = "/opt/opendj/config/{0}".format(obj)
+                logger.info("{0} in '/opt/opendj/config/' volume mount. This volume should be empty for a successful installation.".format(path))
+                # Cleanup volume
+                if "lost+found" in obj:
+                    try:
+                        logger.info("Removing {0}".format(path))
+                        os.removedirs(path)
+                    # os.removedirs will raise an OSError if the leaf directory could not be successfully removed.
+                        install_opendj()
+                    except OSError:
+                        shutil.rmtree(path)
+                        install_opendj()
+                    except Exception as err:
+                        logger.warn(err)
+                # Unforeseen information in the config/ dir will be logged and prompt the administrator to deal with their issue.
+                else:
+                    logger.info("{0} will not be removed. Please manually remove any data from the volume mount for /opt/opendj/config/".format(path))
+        else:
+            install_opendj()
         with ds_context():
             run_dsjavaproperties()
             configure_opendj()
