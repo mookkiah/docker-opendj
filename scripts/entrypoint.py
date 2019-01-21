@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import shlex
+import shutil
 import socket
 import struct
 import subprocess
@@ -677,7 +678,7 @@ def main():
     # install and configure Directory Server
     if not os.path.isfile("/opt/opendj/config/config.ldif"):
 
-        # When mounting certain volumes, OpenDJ installation will fail to install 
+        # When mounting certain volumes, OpenDJ installation will fail to install
         # as the mounted volume may have some residual information for some reason
         # (i.e. Amazon ElasticBlockStorage's "lost+found" directory). This only occurs on the first installation
         # Otherwise the volume can be used as a successfully deployed persistent
