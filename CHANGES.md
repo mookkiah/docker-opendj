@@ -2,6 +2,13 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 3.1.4_04
+
+Released on January 23rd, 2019.
+
+* Fixed OpenDJ server installation where it was failed if `/opt/opendj/config` directory is not empty.
+* Fixed upgrade process from OpenDJ 3.0.0 to 3.0.1 (if required).
+
 ## Version 3.1.4_03
 
 Released on December 11th, 2018.
