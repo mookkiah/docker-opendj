@@ -125,7 +125,8 @@ def install_opendj():
     if code and err:
         logger.warn(err)
 
-    if os.environ.get("JAVA_VERSION", "") >= "1.8.0":
+    if all([os.environ.get("JAVA_VERSION", "") >= "1.8.0",
+            os.path.isfile("/opt/opendj/config/config.ldif")]):
         with open("/opt/opendj/config/java.properties", "a") as f:
             f.write("\nstatus.java-args=-Xms8m -client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true"
                     "\ndsreplication.java-args=-Xms8m -client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true")
@@ -652,37 +653,14 @@ def main():
         exec_cmd("mkdir -p /flag")
         exec_cmd("touch /flag/ldap_upgraded")
 
-    # install and configure Directory Server
-    if not os.path.isfile("/opt/opendj/config/config.ldif"):
-
-        # When mounting certain volumes, OpenDJ installation will fail to install 
-        # as the mounted volume may have some residual information for some reason
-        # (i.e. Amazon ElasticBlockStorage's "lost+found" directory). This only occurs on the first installation
-        # Otherwise the volume can be used as a successfully deployed persistent
-        # disk. Below we will check if there is an `/opt/opendj/config/schema` directory with files
-        # signalling that OpenDJ has already been successfully deployed and will launch as expected.
-
-        if not os.path.isdir("/opt/opendj/config/schema"):
-            for obj in os.listdir("/opt/opendj/config/"):
-                path = "/opt/opendj/config/{0}".format(obj)
-                logger.info("{0} in '/opt/opendj/config/' volume mount. This volume should be empty for a successful installation.".format(path))
-                # Cleanup volume
-                if "lost+found" in obj:
-                    try:
-                        logger.info("Removing {0}".format(path))
-                        os.removedirs(path)
-                    # os.removedirs will raise an OSError if the leaf directory could not be successfully removed.
-                        install_opendj()
-                    except OSError:
-                        shutil.rmtree(path)
-                        install_opendj()
-                    except Exception as err:
-                        logger.warn(err)
-                # Unforeseen information in the config/ dir will be logged and prompt the administrator to deal with their issue.
-                else:
-                    logger.info("{0} will not be removed. Please manually remove any data from the volume mount for /opt/opendj/config/".format(path))
-        else:
-            install_opendj()
+    # Below we will check if there is
+    # an `/opt/opendj/config/schema` directory with files
+    # signalling that OpenDJ has already been successfully deployed and will
+    # launch as expected.
+    if not any([os.path.isfile("/opt/opendj/config/config.ldif"),
+                os.path.isdir("/opt/opendj/config/schema")]):
+        cleanup_config_dir()
+        install_opendj()
 
         with ds_context():
             run_dsjavaproperties()
@@ -824,6 +802,42 @@ def get_certificate_san(certpath):
     )
     san = grep_proc.communicate()[0]
     return san.strip()
+
+
+def cleanup_config_dir():
+    # When mounting certain volumes, OpenDJ installation will fail to install
+    # as the mounted volume may have some residual information for some reason
+    # (i.e. Amazon ElasticBlockStorage's "lost+found" directory). This only
+    # occurs on the first installation. Otherwise the volume can be used as
+    # a successfully deployed persistent disk.
+    subtree = os.listdir("/opt/opendj/config")
+
+    for obj in subtree:
+        path = "/opt/opendj/config/{0}".format(obj)
+        logger.warn(
+            "Found {0} in '/opt/opendj/config/' volume mount. "
+            "/opt/opendj/config should be empty for a successful "
+            "installation.".format(path)
+        )
+
+        if obj != "lost+found":
+            logger.warn(
+                "{0} will not be removed. Please manually remove any "
+                "data from the volume mount for /opt/opendj/config/.".format(path)
+            )
+            continue
+
+        logger.info("Removing {0}".format(path))
+        try:
+            # delete directory
+            shutil.rmtree(path)
+        except OSError:
+            # delete file
+            os.unlink(path)
+        except Exception as exc:
+            # Unforeseen information in the config/ dir will be logged and
+            # prompt the administrator to deal with their issue.
+            logger.warn(exc)
 
 
 if __name__ == "__main__":
