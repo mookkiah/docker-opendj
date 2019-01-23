@@ -412,7 +412,7 @@ def replicate_from(peer, server):
     passwd = decrypt_text(manager.secret.get("encoded_ox_ldap_pw"),
                           manager.secret.get("encoded_salt"))
 
-    for base_dn in ["o=gluu", "o=site"]:
+    for base_dn in ["o=gluu", "o=site", "o=metric"]:
         logger.info("Enabling OpenDJ replication of {} between {}:{} and {}:{}.".format(
             base_dn, peer, GLUU_LDAPS_PORT, server, GLUU_LDAPS_PORT,
         ))
