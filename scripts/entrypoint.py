@@ -522,7 +522,7 @@ def oxtrust_config():
         'shibJksFn': manager.config.get('shibJksFn'),
         'shibJksPass': manager.secret.get('shibJksPass'),
         'jetty_base': manager.config.get('jetty_base'),
-        'oxTrustConfigGeneration': manager.config.get('oxTrustConfigGeneration'),
+        'oxTrustConfigGeneration': "true" if as_boolean(GLUU_OXTRUST_CONFIG_GENERATION) else "false",
         'encoded_shib_jks_pw': manager.secret.get('encoded_shib_jks_pw'),
         'oxauth_client_id': manager.config.get('oxauth_client_id'),
         'oxauthClient_encoded_pw': manager.secret.get('oxauthClient_encoded_pw'),
@@ -698,7 +698,7 @@ def main():
         if not os.path.isfile("/flag/ldap_initialized"):
             manager.config.set('ldap_init_host', GLUU_LDAP_INIT_HOST)
             manager.config.set('ldap_init_port', GLUU_LDAP_INIT_PORT)
-            manager.config.set("oxTrustConfigGeneration", as_boolean(GLUU_OXTRUST_CONFIG_GENERATION))
+            # manager.config.set("oxTrustConfigGeneration", as_boolean(GLUU_OXTRUST_CONFIG_GENERATION))
 
             oxtrust_config()
             render_ldif()
