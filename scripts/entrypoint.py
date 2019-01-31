@@ -1,19 +1,19 @@
 import base64
-import fcntl
 import glob
 import json
 import logging
 import os
 import shlex
 import shutil
-import socket
-import struct
 import subprocess
 from contextlib import contextmanager
 
 import pyDes
 
 from gluulib import get_manager
+from ldap_peer import get_ldap_peers
+from ldap_peer import migrate_ldap_servers
+from ldap_peer import guess_host_addr
 
 GLUU_CACHE_TYPE = os.environ.get("GLUU_CACHE_TYPE", 'IN_MEMORY')
 GLUU_REDIS_URL = os.environ.get('GLUU_REDIS_URL', 'localhost:6379')
@@ -22,8 +22,6 @@ GLUU_MEMCACHED_URL = os.environ.get('GLUU_MEMCACHED_URL', 'localhost:11211')
 GLUU_LDAP_INIT = os.environ.get("GLUU_LDAP_INIT", False)
 GLUU_LDAP_INIT_HOST = os.environ.get('GLUU_LDAP_INIT_HOST', 'localhost')
 GLUU_LDAP_INIT_PORT = os.environ.get("GLUU_LDAP_INIT_PORT", 1636)
-GLUU_LDAP_ADDR_INTERFACE = os.environ.get("GLUU_LDAP_ADDR_INTERFACE", "")
-GLUU_LDAP_ADVERTISE_ADDR = os.environ.get("GLUU_LDAP_ADVERTISE_ADDR", "")
 GLUU_OXTRUST_CONFIG_GENERATION = os.environ.get("GLUU_OXTRUST_CONFIG_GENERATION", False)
 
 GLUU_LDAP_PORT = os.environ.get("GLUU_LDAP_PORT", 1389)
@@ -44,24 +42,6 @@ ch = logging.StreamHandler()
 fmt = logging.Formatter('%(levelname)s - %(asctime)s - %(message)s')
 ch.setFormatter(fmt)
 logger.addHandler(ch)
-
-
-def get_ip_addr(ifname):
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        addr = socket.inet_ntoa(fcntl.ioctl(
-            sock.fileno(),
-            0x8915,  # SIOCGIFADDR
-            struct.pack('256s', ifname[:15])
-        )[20:24])
-    except IOError:
-        addr = ""
-    return addr
-
-
-def guess_host_addr():
-    addr = GLUU_LDAP_ADVERTISE_ADDR or get_ip_addr(GLUU_LDAP_ADDR_INTERFACE) or socket.getfqdn()
-    return addr
 
 
 def decrypt_text(encrypted_text, key):
@@ -380,34 +360,6 @@ def as_boolean(val, default=False):
     return default
 
 
-def get_ldap_peers():
-    return json.loads(manager.config.get("ldap_peers", "[]"))
-
-
-def register_ldap_peer(hostname):
-    peers = set(get_ldap_peers())
-    # add new hostname
-    peers.add(hostname)
-    manager.config.set("ldap_peers", list(peers))
-
-
-def migrate_ldap_servers():
-    # migrate ``ldap_servers`` to ``ldap_peers``
-    adapter = os.environ.get("GLUU_CONFIG_ADAPTER", "")
-
-    if adapter == "consul":
-        # make unique peers
-        peers = set([])
-
-        for _, server in manager.config.adapter.find("ldap_servers").iteritems():
-            peer = json.loads(server)
-            peers.add(peer["host"])
-
-        if peers:
-            # convert set to list to satisfy ``manager.config.set``
-            manager.config.set("ldap_peers", list(peers))
-
-
 def replicate_from(peer, server):
     passwd = decrypt_text(manager.secret.get("encoded_ox_ldap_pw"),
                           manager.secret.get("encoded_salt"))
@@ -622,7 +574,7 @@ def run_upgrade():
 
 def main():
     if not manager.config.get("ldap_peers"):
-        migrate_ldap_servers()
+        migrate_ldap_servers(manager)
 
     server = guess_host_addr()
 
@@ -710,7 +662,7 @@ def main():
             exec_cmd("touch /flag/ldap_initialized")
     else:
         with ds_context():
-            for peer in get_ldap_peers():
+            for peer in get_ldap_peers(manager):
                 # skip if peer is current server
                 if peer == server:
                     continue
@@ -722,9 +674,6 @@ def main():
                 # replicate from active server, no need to replicate from remaining peer
                 replicate_from(peer, server)
                 break
-
-    # register current server for discovery
-    register_ldap_peer(server)
 
     # post-installation cleanup
     for f in [DEFAULT_ADMIN_PW_PATH, "/opt/opendj/opendj-setup.properties"]:

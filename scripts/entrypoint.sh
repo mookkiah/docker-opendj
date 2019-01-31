@@ -25,4 +25,10 @@ if [ ! -f /deploy/touched ]; then
     fi
 fi
 
+if [ -f /etc/redhat-release ]; then
+    source scl_source enable python27 && python /opt/scripts/ldap_peer.py
+else
+    python /opt/scripts/ldap_peer.py
+fi
+
 exec /opt/opendj/bin/start-ds -N
