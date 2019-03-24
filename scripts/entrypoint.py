@@ -132,6 +132,7 @@ def configure_opendj():
         'create-backend --backend-name metric --set base-dn:o=metric --type je --set enabled:true --set db-cache-percent:10',
         'set-connection-handler-prop --handler-name "LDAP Connection Handler" --set enabled:false',
         'set-connection-handler-prop --handler-name "LDAPS Connection Handler" --set enabled:true --set listen-address:0.0.0.0',
+        'set-connection-handler-prop --handler-name "JMX Connection Handler" --set enabled:false',
         'set-administration-connector-prop --set listen-address:0.0.0.0',
         'set-access-control-handler-prop --remove {}'.format(opendj_prop_name),
         'set-global-configuration-prop --set reject-unauthenticated-requests:true',
