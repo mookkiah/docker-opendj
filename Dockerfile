@@ -35,6 +35,13 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install -U pip \
     && pip install -r /tmp/requirements.txt --no-cache-dir
 
+# =======
+# License
+# =======
+
+RUN mkdir -p /licenses
+COPY LICENSE /licenses/
+
 # ====
 # misc
 # ====
@@ -70,6 +77,7 @@ ENV GLUU_LDAPS_PORT 1636
 ENV GLUU_ADMIN_PORT 4444
 ENV GLUU_REPLICATION_PORT 8989
 ENV GLUU_JMX_PORT 1689
+ENV GLUU_AUTO_ACCEPT_LICENSE false
 
 RUN mkdir -p /etc/certs
 COPY schemas/96-eduperson.ldif /opt/opendj/template/config/schema/
@@ -78,6 +86,7 @@ COPY schemas/77-customAttributes.ldif /opt/opendj/template/config/schema/
 COPY templates /opt/templates
 COPY scripts /opt/scripts
 RUN chmod +x /opt/scripts/entrypoint.sh
+RUN chmod +x /opt/scripts/license_checker.py
 
 ENTRYPOINT ["tini", "--"]
-CMD ["/opt/scripts/wait-for-it", "/opt/scripts/entrypoint.sh"]
+CMD ["/opt/scripts/license_checker.py", "/opt/scripts/wait-for-it", "/opt/scripts/entrypoint.sh"]
