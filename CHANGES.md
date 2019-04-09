@@ -15,6 +15,18 @@ Released on March 23rd, 2019.
 
 * Upgraded to Gluu Server 3.1.5.
 
+## Version 3.1.4_06
+
+Released on April 9th, 2019.
+
+* Fixed inconsistent oxTrustConfigGeneration value.
+
+## Version 3.1.4_05
+
+Released on April 4th, 2019.
+
+* Added license info during container run.
+
 ## Version 3.1.4_04
 
 Released on January 23rd, 2019.
