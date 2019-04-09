@@ -515,7 +515,7 @@ def oxtrust_config():
         'shibJksFn': config_manager.get('shibJksFn'),
         'shibJksPass': config_manager.get('shibJksPass'),
         'jetty_base': config_manager.get('jetty_base'),
-        'oxTrustConfigGeneration': "true" if as_boolean(GLUU_OXTRUST_CONFIG_GENERATION) else "false",
+        # 'oxTrustConfigGeneration': "true" if as_boolean(GLUU_OXTRUST_CONFIG_GENERATION) else "false",
         'encoded_shib_jks_pw': config_manager.get('encoded_shib_jks_pw'),
         'oxauth_client_id': config_manager.get('oxauth_client_id'),
         'oxauthClient_encoded_pw': config_manager.get('oxauthClient_encoded_pw'),
