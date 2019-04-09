@@ -2,6 +2,12 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 3.1.4_06
+
+Released on April 9th, 2019.
+
+* Fixed inconsistent oxTrustConfigGeneration value.
+
 ## Version 3.1.4_05
 
 Released on April 4th, 2019.
