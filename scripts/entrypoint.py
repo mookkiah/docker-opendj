@@ -87,10 +87,10 @@ def install_opendj():
                     "\ndsreplication.java-args=-Xms8m -client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true")
 
 
-# def run_dsjavaproperties():
-#     _, err, code = exec_cmd("/opt/opendj/bin/dsjavaproperties")
-#     if code and err:
-#         logger.warn(err)
+def run_dsjavaproperties():
+    _, err, code = exec_cmd("/opt/opendj/bin/dsjavaproperties")
+    if code and err:
+        logger.warn(err)
 
 
 def configure_opendj():
@@ -102,19 +102,25 @@ def configure_opendj():
         'set-global-configuration-prop --set single-structural-objectclass-behavior:accept',
         'set-password-policy-prop --policy-name "Default Password Policy" --set allow-pre-encoded-passwords:true',
         'set-log-publisher-prop --publisher-name "File-Based Audit Logger" --set enabled:true',
+
         'set-connection-handler-prop --handler-name "LDAP Connection Handler" --set enabled:false',
         'set-connection-handler-prop --handler-name "JMX Connection Handler" --set enabled:false',
         'set-access-control-handler-prop --remove {}'.format(opendj_prop_name),
         'set-global-configuration-prop --set reject-unauthenticated-requests:true',
         'set-password-policy-prop --policy-name "Default Password Policy" --set default-password-storage-scheme:"Salted SHA-512"',
-        # 'set-global-configuration-prop --set reject-unauthenticated-requests:true',
+        'set-global-configuration-prop --set reject-unauthenticated-requests:true',
         'create-plugin --plugin-name "Unique mail address" --type unique-attribute --set enabled:true --set base-dn:o=gluu --set type:mail',
         'create-plugin --plugin-name "Unique uid entry" --type unique-attribute --set enabled:true --set base-dn:o=gluu --set type:uid',
-        # 'set-attribute-syntax-prop --syntax-name "Directory String" --set allow-zero-length-values:true',
-        'set-connection-handler-prop --handler-name "LDAPS Connection Handler" --set enabled:true --set listen-address:0.0.0.0',
-        'set-administration-connector-prop --set listen-address:0.0.0.0',
+
+        # 'set-connection-handler-prop --handler-name "LDAPS Connection Handler" --set enabled:true --set listen-address:0.0.0.0',
+        # 'set-administration-connector-prop --set listen-address:0.0.0.0',
         # 'set-crypto-manager-prop --set ssl-encryption:true',
     ]
+
+    if not is_wrends():
+        config_mods.append(
+            'set-attribute-syntax-prop --syntax-name "Directory String" --set allow-zero-length-values:true',
+        )
 
     if require_site():
         config_mods.append(
@@ -159,7 +165,6 @@ def import_ldif():
             "base.ldif",
             "attributes.ldif",
             "scopes.ldif",
-            "clients.ldif",
             "scripts.ldif",
             "configuration.ldif",
             "scim.ldif",
@@ -167,6 +172,9 @@ def import_ldif():
             "oxtrust_api.ldif",
             "passport.ldif",
             "oxpassport-config.ldif",
+            "98-radius.ldif",
+            "gluu_radius_base.ldif",
+            "gluu_radius_server.ldif",
         ],
         "user": [
             "people.ldif",
@@ -177,6 +185,14 @@ def import_ldif():
         ],
         "statistic": [
             "o_metric.ldif",
+        ],
+        "authorization": [],
+        "tokens": [],
+        "clients": [
+            "clients.ldif",
+            "oxtrust_api_clients.ldif",
+            "scim_clients.ldif",
+            "gluu_radius_clients.ldif",
         ],
     }
 
@@ -199,7 +215,7 @@ def import_ldif():
 
             logger.info("Importing {} file".format(file_))
 
-            cmd = " ".join([
+            cmd = [
                 "/opt/opendj/bin/ldapmodify",
                 "--hostname {}".format(guess_host_addr()),
                 "--port {}".format(GLUU_ADMIN_PORT),
@@ -208,10 +224,13 @@ def import_ldif():
                 "--filename {}".format(dst),
                 "--trustAll",
                 "--useSSL",
-                # "--defaultAdd",
-                # "--continueOnError",
-            ])
-            _, err, code = exec_cmd(cmd)
+                "--continueOnError",
+            ]
+
+            if not is_wrends():
+                cmd.append("--defaultAdd")
+
+            _, err, code = exec_cmd(" ".join(cmd))
             if code:
                 logger.warn(err)
 
@@ -466,7 +485,8 @@ def main():
         )
 
     # do upgrade from 3.0.0 to 3.0.1 if required
-    run_upgrade()
+    if not is_wrends():
+        run_upgrade()
 
     # Below we will check if there is a `/opt/opendj/config/config.ldif` or
     # `/opt/opendj/config/schema` directory with files signalling that OpenDJ
@@ -477,7 +497,8 @@ def main():
         install_opendj()
 
         with ds_context():
-            # run_dsjavaproperties()
+            if not is_wrends():
+                run_dsjavaproperties()
             configure_opendj()
 
             with open("/app/templates/index.json") as fr:
@@ -760,8 +781,19 @@ def prepare_template_ctx():
         "oxtrust_resource_id": manager.config.get("oxtrust_resource_id"),
         "passport_resource_id": manager.config.get("passport_resource_id"),
         "passport_oxtrust_config": passport_oxtrust_config,
+
+        "gluu_radius_client_id": manager.config.get("gluu_radius_client_id"),
+        "gluu_ro_encoded_pw": manager.secret.get("gluu_ro_encoded_pw"),
+        "super_gluu_ro_session_script": manager.config.get("super_gluu_ro_session_script"),
+        "super_gluu_ro_script": manager.config.get("super_gluu_ro_script"),
+        "enableRadiusScripts": "false",
+        "gluu_ro_client_base64_jwks": manager.secret.get("gluu_ro_client_base64_jwks"),
     }
     return ctx
+
+
+def is_wrends():
+    return os.path.isfile("/opt/opendj/lib/wrends.jar")
 
 
 if __name__ == "__main__":
