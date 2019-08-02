@@ -19,6 +19,10 @@ from pygluu.containerlib.utils import generate_base64_contents
 from pygluu.containerlib.utils import safe_render
 
 GLUU_CACHE_TYPE = os.environ.get("GLUU_CACHE_TYPE", 'IN_MEMORY')
+GLUU_REDIS_URL = os.environ.get('GLUU_REDIS_URL', 'localhost:6379')
+GLUU_REDIS_TYPE = os.environ.get('GLUU_REDIS_TYPE', 'STANDALONE')
+GLUU_MEMCACHED_URL = os.environ.get('GLUU_MEMCACHED_URL', 'localhost:11211')
+
 GLUU_LDAP_INIT = os.environ.get("GLUU_LDAP_INIT", False)
 GLUU_LDAP_INIT_HOST = os.environ.get('GLUU_LDAP_INIT_HOST', 'localhost')
 GLUU_LDAP_INIT_PORT = os.environ.get("GLUU_LDAP_INIT_PORT", 1636)
@@ -689,6 +693,9 @@ def prepare_template_ctx():
 
     ctx = {
         'cache_provider_type': GLUU_CACHE_TYPE,
+        'redis_url': GLUU_REDIS_URL,
+        'redis_type': GLUU_REDIS_TYPE,
+        'memcached_url': GLUU_MEMCACHED_URL,
         'ldap_hostname': manager.config.get('ldap_init_host', ""),
         'ldaps_port': manager.config.get('ldap_init_port', 1636),
         'ldap_binddn': manager.config.get('ldap_binddn'),
