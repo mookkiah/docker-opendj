@@ -416,10 +416,12 @@ def ds_context():
 
 
 def run_upgrade():
-    # check if we need to upgrade from 3.0.0 to 3.0.1
-    if os.path.isfile("/opt/opendj/config/buildinfo"):
-        buildinfo = "3.0.1"
+    buildinfo = "3.0.1"
+    if is_wrends():
+        buildinfo = "4.0.0"
 
+    # check if we need to upgrade
+    if os.path.isfile("/opt/opendj/config/buildinfo"):
         # example of buildinfo `3.0.1.c5ad2e4846d8aeb501ffdfe5ae2dfd35136dfa68`
         with open("/opt/opendj/config/buildinfo") as f:
             old_buildinfo = ".".join([
@@ -488,9 +490,8 @@ def main():
             binary_mode=True,
         )
 
-    # do upgrade from 3.0.0 to 3.0.1 if required
-    if not is_wrends():
-        run_upgrade()
+    # do upgrade if required
+    run_upgrade()
 
     # Below we will check if there is a `/opt/opendj/config/config.ldif` or
     # `/opt/opendj/config/schema` directory with files signalling that OpenDJ
