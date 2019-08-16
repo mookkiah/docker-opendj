@@ -1,7 +1,5 @@
 FROM openjdk:8-jre-alpine3.9
 
-LABEL maintainer="Gluu Inc. <support@gluu.org>"
-
 # ===============
 # Alpine packages
 # ===============
@@ -124,10 +122,19 @@ ENV GLUU_CACHE_TYPE=IN_MEMORY \
 # misc
 # ====
 
+LABEL name="Wren:DS" \
+    maintainer="Gluu Inc. <support@gluu.org>" \
+    vendor="Gluu Federation" \
+    version="4.0.0" \
+    release="dev" \
+    summary="Gluu Wren:DS" \
+    description="Community fork of OpenDJ, an LDAP server originally developed by ForgeRock"
+
 RUN mkdir -p /etc/certs /flag /deploy /app/tmp
 COPY schemas/*.ldif /opt/opendj/template/config/schema/
 COPY templates /app/templates
 COPY scripts /app/scripts
+RUN chmod +x /app/scripts/entrypoint.sh
 
 # # create ldap user
 # RUN useradd -ms /bin/sh --uid 1000 ldap \
@@ -147,4 +154,4 @@ COPY scripts /app/scripts
 # USER 1000
 
 ENTRYPOINT ["tini", "-g", "--"]
-CMD ["sh", "/app/scripts/entrypoint.sh"]
+CMD ["/app/scripts/entrypoint.sh"]

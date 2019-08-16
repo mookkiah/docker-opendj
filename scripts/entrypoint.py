@@ -191,8 +191,8 @@ def import_ldif():
             "o_metric.ldif",
         ],
         "authorization": [],
-        "tokens": [],
-        "clients": [
+        "token": [],
+        "client": [
             "clients.ldif",
             "oxtrust_api_clients.ldif",
             "scim_clients.ldif",
