@@ -1,4 +1,0 @@
-python-consul==1.0.1
-pyDes==2.0.1
-kubernetes==6.0.0
-hvac==0.7.0
