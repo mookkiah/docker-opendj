@@ -197,6 +197,7 @@ def import_ldif():
             "oxtrust_api_clients.ldif",
             "scim_clients.ldif",
             "gluu_radius_clients.ldif",
+            "passport_clients.ldif",
         ],
     }
 
@@ -205,8 +206,11 @@ def import_ldif():
         mapping = GLUU_PERSISTENCE_LDAP_MAPPING
         ldif_mappings = {mapping: ldif_mappings[mapping]}
 
+        # these mappings require `base.ldif`
+        opt_mappings = ("user", "authorization", "token", "client")
+
         # `user` mapping requires `o=gluu` which available in `base.ldif`
-        if mapping == "user" and "base.ldif" not in ldif_mappings[mapping]:
+        if mapping in opt_mappings and "base.ldif" not in ldif_mappings[mapping]:
             ldif_mappings[mapping].insert(0, "base.ldif")
 
     ctx = prepare_template_ctx()
