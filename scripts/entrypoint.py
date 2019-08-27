@@ -12,33 +12,15 @@ from ldap_peer import guess_host_addr
 from settings import LOGGING_CONFIG
 
 from pygluu.containerlib import get_manager
-from pygluu.containerlib.utils import as_boolean
 from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
-from pygluu.containerlib.utils import generate_base64_contents
-from pygluu.containerlib.utils import safe_render
 
-GLUU_CACHE_TYPE = os.environ.get("GLUU_CACHE_TYPE", 'IN_MEMORY')
-GLUU_REDIS_URL = os.environ.get('GLUU_REDIS_URL', 'localhost:6379')
-GLUU_REDIS_TYPE = os.environ.get('GLUU_REDIS_TYPE', 'STANDALONE')
-GLUU_MEMCACHED_URL = os.environ.get('GLUU_MEMCACHED_URL', 'localhost:11211')
-
-GLUU_LDAP_INIT = os.environ.get("GLUU_LDAP_INIT", False)
-GLUU_LDAP_INIT_HOST = os.environ.get('GLUU_LDAP_INIT_HOST', 'localhost')
-GLUU_LDAP_INIT_PORT = os.environ.get("GLUU_LDAP_INIT_PORT", 1636)
-GLUU_OXTRUST_CONFIG_GENERATION = os.environ.get("GLUU_OXTRUST_CONFIG_GENERATION", True)
-
-GLUU_LDAP_PORT = os.environ.get("GLUU_LDAP_PORT", 1389)
-GLUU_LDAPS_PORT = os.environ.get("GLUU_LDAPS_PORT", 1636)
 GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
 GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
 GLUU_JMX_PORT = os.environ.get("GLUU_JMX_PORT", 1689)
-
 GLUU_CERT_ALT_NAME = os.environ.get("GLUU_CERT_ALT_NAME", "")
-
 GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
 GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
-
 DEFAULT_ADMIN_PW_PATH = "/opt/opendj/.pw"
 
 manager = get_manager()
@@ -155,94 +137,6 @@ def configure_opendj():
             logger.warn(err)
 
 
-def render_ldif(src, dst, ctx):
-    with open(src) as f:
-        txt = f.read()
-
-    with open(dst, "w") as f:
-        f.write(safe_render(txt, ctx))
-
-
-def import_ldif():
-    ldif_mappings = {
-        "default": [
-            "base.ldif",
-            "attributes.ldif",
-            "scopes.ldif",
-            "scripts.ldif",
-            "configuration.ldif",
-            "scim.ldif",
-            "oxidp.ldif",
-            "oxtrust_api.ldif",
-            "passport.ldif",
-            "oxpassport-config.ldif",
-            "98-radius.ldif",
-            "gluu_radius_base.ldif",
-            "gluu_radius_server.ldif",
-        ],
-        "user": [
-            "people.ldif",
-            "groups.ldif",
-        ],
-        "site": [
-            "o_site.ldif",
-        ],
-        "statistic": [
-            "o_metric.ldif",
-        ],
-        "authorization": [],
-        "token": [],
-        "client": [
-            "clients.ldif",
-            "oxtrust_api_clients.ldif",
-            "scim_clients.ldif",
-            "gluu_radius_clients.ldif",
-            "passport_clients.ldif",
-        ],
-    }
-
-    # hybrid means only a subsets of ldif are needed
-    if GLUU_PERSISTENCE_TYPE == "hybrid":
-        mapping = GLUU_PERSISTENCE_LDAP_MAPPING
-        ldif_mappings = {mapping: ldif_mappings[mapping]}
-
-        # these mappings require `base.ldif`
-        opt_mappings = ("user", "authorization", "token", "client")
-
-        # `user` mapping requires `o=gluu` which available in `base.ldif`
-        if mapping in opt_mappings and "base.ldif" not in ldif_mappings[mapping]:
-            ldif_mappings[mapping].insert(0, "base.ldif")
-
-    ctx = prepare_template_ctx()
-
-    for _, files in ldif_mappings.iteritems():
-        for file_ in files:
-            src = "/app/templates/ldif/{}".format(file_)
-            dst = "/app/tmp/{}".format(file_)
-            render_ldif(src, dst, ctx)
-
-            logger.info("Importing {} file".format(file_))
-
-            cmd = [
-                "/opt/opendj/bin/ldapmodify",
-                "--hostname {}".format(guess_host_addr()),
-                "--port {}".format(GLUU_ADMIN_PORT),
-                "--bindDN '{}'".format(manager.config.get("ldap_binddn")),
-                "-j {}".format(DEFAULT_ADMIN_PW_PATH),
-                "--filename {}".format(dst),
-                "--trustAll",
-                "--useSSL",
-                "--continueOnError",
-            ]
-
-            if not is_wrends():
-                cmd.append("--defaultAdd")
-
-            _, err, code = exec_cmd(" ".join(cmd))
-            if code:
-                logger.warn(err)
-
-
 def index_opendj(backend, data):
     logger.info("Creating indexes for {} backend.".format(backend))
 
@@ -280,6 +174,7 @@ def replicate_from(peer, server):
                          manager.secret.get("encoded_salt"))
 
     dn_list = ["o=gluu"]
+    ldaps_port = manager.config.get("ldaps_port")
 
     if require_site():
         dn_list.append("o=site")
@@ -289,7 +184,7 @@ def replicate_from(peer, server):
 
     for base_dn in dn_list:
         logger.info("Enabling OpenDJ replication of {} between {}:{} and {}:{}.".format(
-            base_dn, peer, GLUU_LDAPS_PORT, server, GLUU_LDAPS_PORT,
+            base_dn, peer, ldaps_port, server, ldaps_port,
         ))
 
         enable_cmd = " ".join([
@@ -319,7 +214,7 @@ def replicate_from(peer, server):
             logger.warn(err.strip())
 
         logger.info("Initializing OpenDJ replication of {} between {}:{} and {}:{}.".format(
-            base_dn, peer, GLUU_LDAPS_PORT, server, GLUU_LDAPS_PORT,
+            base_dn, peer, ldaps_port, server, ldaps_port,
         ))
 
         init_cmd = " ".join([
@@ -366,26 +261,6 @@ def check_connection(host, port):
 def sync_ldap_pkcs12():
     dest = manager.config.get("ldapTrustStoreFn")
     manager.secret.to_file("ldap_pkcs12_base64", dest, decode=True, binary_mode=True)
-
-
-def oxtrust_config():
-    ctx = prepare_template_ctx()
-    oxtrust_template_base = '/app/templates/oxtrust'
-
-    key_and_jsonfile_map = {
-        'oxtrust_cache_refresh_base64': 'oxtrust-cache-refresh.json',
-        'oxtrust_config_base64': 'oxtrust-config.json',
-        'oxtrust_import_person_base64': 'oxtrust-import-person.json'
-    }
-
-    for key, json_file in key_and_jsonfile_map.iteritems():
-        json_file_path = os.path.join(oxtrust_template_base, json_file)
-        with open(json_file_path, 'r') as fp:
-            if json_file == "oxtrust-import-person.json":
-                ctx_manager = manager.config
-            else:
-                ctx_manager = manager.secret
-            ctx_manager.set(key, generate_base64_contents(fp.read() % ctx))
 
 
 def sync_ldap_certs():
@@ -494,6 +369,10 @@ def main():
             binary_mode=True,
         )
 
+    # update ldap_init_*
+    manager.config.set("ldap_init_host", GLUU_CERT_ALT_NAME)
+    manager.config.set("ldap_init_port", 1636)
+
     # do upgrade if required
     run_upgrade()
 
@@ -516,32 +395,20 @@ def main():
                 if require_site():
                     index_opendj("site", data)
 
-    if as_boolean(GLUU_LDAP_INIT):
-        if not os.path.isfile("/flag/ldap_initialized"):
-            manager.config.set('ldap_init_host', GLUU_LDAP_INIT_HOST)
-            manager.config.set('ldap_init_port', GLUU_LDAP_INIT_PORT)
-
-            oxtrust_config()
-
-            with ds_context():
-                import_ldif()
-
-            exec_cmd("mkdir -p /flag")
-            exec_cmd("touch /flag/ldap_initialized")
-    else:
-        with ds_context():
-            for peer in get_ldap_peers(manager):
-                # skip if peer is current server
-                if peer == server:
-                    continue
-                # if peer is not active, skip and try another one
-                out, err, code = check_connection(peer, GLUU_LDAPS_PORT)
-                if code != 0:
-                    logger.warn("unable to connect to peer; reason={}".format(err))
-                    continue
-                # replicate from active server, no need to replicate from remaining peer
-                replicate_from(peer, server)
-                break
+    with ds_context():
+        ldaps_port = manager.config.get("ldaps_port")
+        for peer in get_ldap_peers(manager):
+            # skip if peer is current server
+            if peer == server:
+                continue
+            # if peer is not active, skip and try another one
+            out, err, code = check_connection(peer, ldaps_port)
+            if code != 0:
+                logger.warn("unable to connect to peer; reason={}".format(err))
+                continue
+            # replicate from active server, no need to replicate from remaining peer
+            replicate_from(peer, server)
+            break
 
     # post-installation cleanup
     for f in [DEFAULT_ADMIN_PW_PATH, "/opt/opendj/opendj-setup.properties"]:
@@ -678,130 +545,6 @@ def cleanup_config_dir():
             # Unforeseen information in the config/ dir will be logged and
             # prompt the administrator to deal with their issue.
             logger.warn(exc)
-
-
-def prepare_template_ctx():
-    passport_oxtrust_config = '''
-    "passportUmaClientId":"%(passport_rs_client_id)s",
-    "passportUmaClientKeyId":"",
-    "passportUmaResourceId":"%(passport_resource_id)s",
-    "passportUmaScope":"https://%(hostname)s/oxauth/restv1/uma/scopes/passport_access",
-    "passportUmaClientKeyStoreFile":"%(passport_rs_client_jks_fn)s",
-    "passportUmaClientKeyStorePassword":"%(passport_rs_client_jks_pass_encoded)s",
-''' % {
-        "passport_rs_client_id": manager.config.get("passport_rs_client_id"),
-        "passport_resource_id": manager.config.get("passport_resource_id"),
-        "hostname": manager.config.get("hostname"),
-        "passport_rs_client_jks_fn": manager.config.get("passport_rs_client_jks_fn"),
-        "passport_rs_client_jks_pass_encoded": manager.secret.get("passport_rs_client_jks_pass_encoded")
-    }
-
-    ctx = {
-        'cache_provider_type': GLUU_CACHE_TYPE,
-        'redis_url': GLUU_REDIS_URL,
-        'redis_type': GLUU_REDIS_TYPE,
-        'memcached_url': GLUU_MEMCACHED_URL,
-        'ldap_hostname': manager.config.get('ldap_init_host', ""),
-        'ldaps_port': manager.config.get('ldap_init_port', 1636),
-        'ldap_binddn': manager.config.get('ldap_binddn'),
-        'encoded_ox_ldap_pw': manager.secret.get('encoded_ox_ldap_pw'),
-        'jetty_base': manager.config.get('jetty_base'),
-        'orgName': manager.config.get('orgName'),
-        'oxauth_client_id': manager.config.get('oxauth_client_id'),
-        'oxauthClient_encoded_pw': manager.secret.get('oxauthClient_encoded_pw'),
-        'hostname': manager.config.get('hostname'),
-        'idp_client_id': manager.config.get('idp_client_id'),
-        'idpClient_encoded_pw': manager.secret.get('idpClient_encoded_pw'),
-        'oxauth_config_base64': manager.secret.get('oxauth_config_base64'),
-        'oxauth_static_conf_base64': manager.config.get('oxauth_static_conf_base64'),
-        'oxauth_openid_key_base64': manager.secret.get('oxauth_openid_key_base64'),
-        'oxauth_error_base64': manager.config.get('oxauth_error_base64'),
-        'oxtrust_config_base64': manager.secret.get('oxtrust_config_base64'),
-        'oxtrust_cache_refresh_base64': manager.secret.get('oxtrust_cache_refresh_base64'),
-        'oxtrust_import_person_base64': manager.config.get('oxtrust_import_person_base64'),
-        'oxidp_config_base64': manager.secret.get('oxidp_config_base64'),
-
-        'passport_central_config_base64': manager.secret.get("passport_central_config_base64"),
-        'passport_rs_client_id': manager.config.get('passport_rs_client_id'),
-        'passport_rs_client_base64_jwks': manager.secret.get('passport_rs_client_base64_jwks'),
-        'passport_rp_client_id': manager.config.get('passport_rp_client_id'),
-        'passport_rp_client_base64_jwks': manager.secret.get('passport_rp_client_base64_jwks'),
-        "passport_rp_client_jks_fn": manager.config.get("passport_rp_client_jks_fn"),
-        "passport_rp_client_jks_pass": manager.secret.get("passport_rp_client_jks_pass"),
-        "encoded_ldap_pw": manager.secret.get('encoded_ldap_pw'),
-        'scim_rs_client_id': manager.config.get('scim_rs_client_id'),
-        'scim_rs_client_base64_jwks': manager.secret.get('scim_rs_client_base64_jwks'),
-        'scim_rp_client_id': manager.config.get('scim_rp_client_id'),
-        'scim_rp_client_base64_jwks': manager.secret.get('scim_rp_client_base64_jwks'),
-        'scim_resource_oxid': manager.config.get('scim_resource_oxid'),
-        'passport_rp_ii_client_id': manager.config.get("passport_rp_ii_client_id"),
-        'api_rs_client_base64_jwks': manager.secret.get("api_rs_client_base64_jwks"),
-        'api_rp_client_base64_jwks': manager.secret.get("api_rp_client_base64_jwks"),
-
-        # scripts.ldif
-        "person_authentication_usercertexternalauthenticator": manager.config.get("person_authentication_usercertexternalauthenticator"),
-        "person_authentication_passportexternalauthenticator": manager.config.get("person_authentication_passportexternalauthenticator"),
-        "dynamic_scope_dynamic_permission": manager.config.get("dynamic_scope_dynamic_permission"),
-        "id_generator_samplescript": manager.config.get("id_generator_samplescript"),
-        "dynamic_scope_org_name": manager.config.get("dynamic_scope_org_name"),
-        "dynamic_scope_work_phone": manager.config.get("dynamic_scope_work_phone"),
-        "cache_refresh_samplescript": manager.config.get("cache_refresh_samplescript"),
-        "person_authentication_yubicloudexternalauthenticator": manager.config.get("person_authentication_yubicloudexternalauthenticator"),
-        "uma_rpt_policy_uma_rpt_policy": manager.config.get("uma_rpt_policy_uma_rpt_policy"),
-        "uma_claims_gathering_uma_claims_gathering": manager.config.get("uma_claims_gathering_uma_claims_gathering"),
-        "person_authentication_basiclockaccountexternalauthenticator": manager.config.get("person_authentication_basiclockaccountexternalauthenticator"),
-        "person_authentication_uafexternalauthenticator": manager.config.get("person_authentication_uafexternalauthenticator"),
-        "person_authentication_otpexternalauthenticator": manager.config.get("person_authentication_otpexternalauthenticator"),
-        "person_authentication_duoexternalauthenticator": manager.config.get("person_authentication_duoexternalauthenticator"),
-        "update_user_samplescript": manager.config.get("update_user_samplescript"),
-        "user_registration_samplescript": manager.config.get("user_registration_samplescript"),
-        "user_registration_confirmregistrationsamplescript": manager.config.get("user_registration_confirmregistrationsamplescript"),
-        "person_authentication_googleplusexternalauthenticator": manager.config.get("person_authentication_googleplusexternalauthenticator"),
-        "person_authentication_u2fexternalauthenticator": manager.config.get("person_authentication_u2fexternalauthenticator"),
-        "person_authentication_supergluuexternalauthenticator": manager.config.get("person_authentication_supergluuexternalauthenticator"),
-        "person_authentication_basicexternalauthenticator": manager.config.get("person_authentication_basicexternalauthenticator"),
-        "scim_samplescript": manager.config.get("scim_samplescript"),
-        "person_authentication_samlexternalauthenticator": manager.config.get("person_authentication_samlexternalauthenticator"),
-        "client_registration_samplescript": manager.config.get("client_registration_samplescript"),
-        "person_authentication_twilio2fa": manager.config.get("person_authentication_twilio2fa"),
-        "application_session_samplescript": manager.config.get("application_session_samplescript"),
-        "uma_rpt_policy_umaclientauthzrptpolicy": manager.config.get("uma_rpt_policy_umaclientauthzrptpolicy"),
-        "person_authentication_samlpassportauthenticator": manager.config.get("person_authentication_samlpassportauthenticator"),
-        "consent_gathering_consentgatheringsample": manager.config.get("consent_gathering_consentgatheringsample"),
-        "person_authentication_thumbsigninexternalauthenticator": manager.config.get("person_authentication_thumbsigninexternalauthenticator"),
-        "resource_owner_password_credentials_resource_owner_password_credentials": manager.config.get("resource_owner_password_credentials_resource_owner_password_credentials"),
-        "person_authentication_fido2externalauthenticator": manager.config.get("person_authentication_fido2externalauthenticator"),
-        "introspection_introspection": manager.config.get("introspection_introspection"),
-
-        'admin_email': manager.config.get('admin_email'),
-        'shibJksFn': manager.config.get('shibJksFn'),
-        'shibJksPass': manager.secret.get('shibJksPass'),
-        'oxTrustConfigGeneration': "true" if as_boolean(GLUU_OXTRUST_CONFIG_GENERATION) else "false",
-        'encoded_shib_jks_pw': manager.secret.get('encoded_shib_jks_pw'),
-        'scim_rs_client_jks_fn': manager.config.get('scim_rs_client_jks_fn'),
-        'scim_rs_client_jks_pass_encoded': manager.secret.get('scim_rs_client_jks_pass_encoded'),
-        'passport_rs_client_jks_fn': manager.config.get('passport_rs_client_jks_fn'),
-        'passport_rs_client_jks_pass_encoded': manager.secret.get('passport_rs_client_jks_pass_encoded'),
-        'shibboleth_version': manager.config.get('shibboleth_version'),
-        'idp3Folder': manager.config.get('idp3Folder'),
-        'ldap_site_binddn': manager.config.get('ldap_site_binddn'),
-        'api_rs_client_jks_fn': manager.config.get("api_rs_client_jks_fn"),
-        'api_rs_client_jks_pass_encoded': manager.secret.get("api_rs_client_jks_pass_encoded"),
-
-        "oxtrust_requesting_party_client_id": manager.config.get("oxtrust_requesting_party_client_id"),
-        "oxtrust_resource_server_client_id": manager.config.get("oxtrust_resource_server_client_id"),
-        "oxtrust_resource_id": manager.config.get("oxtrust_resource_id"),
-        "passport_resource_id": manager.config.get("passport_resource_id"),
-        "passport_oxtrust_config": passport_oxtrust_config,
-
-        "gluu_radius_client_id": manager.config.get("gluu_radius_client_id"),
-        "gluu_ro_encoded_pw": manager.secret.get("gluu_ro_encoded_pw"),
-        "super_gluu_ro_session_script": manager.config.get("super_gluu_ro_session_script"),
-        "super_gluu_ro_script": manager.config.get("super_gluu_ro_script"),
-        "enableRadiusScripts": "false",
-        "gluu_ro_client_base64_jwks": manager.secret.get("gluu_ro_client_base64_jwks"),
-    }
-    return ctx
 
 
 def is_wrends():
