@@ -18,13 +18,23 @@ LOGGING_CONFIG = {
             "formatter": "default",
         },
     },
-    # "loggers": {
-    #     "pygluu.containerlib": {
-    #         "handlers": ["console"],
-    #         "level": "INFO",
-    #         "propagate": False,
-    #     },
-    # },
+    "loggers": {
+        "pygluu.containerlib": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "ldap_replicator": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "entrypoint": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
     "root": {
         "level": "INFO",
         "handlers": ["console"],

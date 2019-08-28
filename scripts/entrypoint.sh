@@ -61,8 +61,10 @@ fi
 
 if [ -f /etc/redhat-release ]; then
     source scl_source enable python27 && python /app/scripts/ldap_peer.py
+    source scl_source enable python27 && python /app/scripts/ldap_replicator.py &
 else
     python /app/scripts/ldap_peer.py
+    python /app/scripts/ldap_replicator.py &
 fi
 
 # run OpenDJ server

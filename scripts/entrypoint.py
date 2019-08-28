@@ -7,7 +7,6 @@ import shutil
 import subprocess
 from contextlib import contextmanager
 
-from ldap_peer import get_ldap_peers
 from ldap_peer import guess_host_addr
 from settings import LOGGING_CONFIG
 
@@ -169,95 +168,6 @@ def index_opendj(backend, data):
                     logger.warn(err)
 
 
-def replicate_from(peer, server):
-    passwd = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                         manager.secret.get("encoded_salt"))
-
-    dn_list = ["o=gluu"]
-    ldaps_port = manager.config.get("ldaps_port")
-
-    if require_site():
-        dn_list.append("o=site")
-
-    if require_statistic():
-        dn_list.append("o=metric")
-
-    for base_dn in dn_list:
-        logger.info("Enabling OpenDJ replication of {} between {}:{} and {}:{}.".format(
-            base_dn, peer, ldaps_port, server, ldaps_port,
-        ))
-
-        enable_cmd = " ".join([
-            "/opt/opendj/bin/dsreplication",
-            "enable",
-            "--host1 {}".format(peer),
-            "--port1 {}".format(GLUU_ADMIN_PORT),
-            "--bindDN1 '{}'".format(manager.config.get("ldap_binddn")),
-            "--bindPassword1 {}".format(passwd),
-            "--replicationPort1 {}".format(GLUU_REPLICATION_PORT),
-            "--secureReplication1",
-            "--host2 {}".format(server),
-            "--port2 {}".format(GLUU_ADMIN_PORT),
-            "--bindDN2 '{}'".format(manager.config.get("ldap_binddn")),
-            "--bindPassword2 {}".format(passwd),
-            "--secureReplication2",
-            "--adminUID admin",
-            "--adminPassword {}".format(passwd),
-            "--baseDN '{}'".format(base_dn),
-            "-X",
-            "-n",
-            "-Q",
-            "--trustAll",
-        ])
-        _, err, code = exec_cmd(enable_cmd)
-        if code:
-            logger.warn(err.strip())
-
-        logger.info("Initializing OpenDJ replication of {} between {}:{} and {}:{}.".format(
-            base_dn, peer, ldaps_port, server, ldaps_port,
-        ))
-
-        init_cmd = " ".join([
-            "/opt/opendj/bin/dsreplication",
-            "initialize",
-            "--baseDN '{}'".format(base_dn),
-            "--adminUID admin",
-            "--adminPassword {}".format(passwd),
-            "--hostSource {}".format(peer),
-            "--portSource {}".format(GLUU_ADMIN_PORT),
-            "--hostDestination {}".format(server),
-            "--portDestination {}".format(GLUU_ADMIN_PORT),
-            "-X",
-            "-n",
-            "-Q",
-            "--trustAll",
-        ])
-        _, err, code = exec_cmd(init_cmd)
-        if code:
-            logger.warn(err.strip())
-
-
-def check_connection(host, port):
-    logger.info("Checking connection to {}:{}.".format(host, port))
-
-    passwd = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                         manager.secret.get("encoded_salt"))
-
-    cmd = " ".join([
-        "/opt/opendj/bin/ldapsearch",
-        "--hostname {}".format(host),
-        "--port {}".format(port),
-        "--baseDN ''",
-        "--bindDN '{}'".format(manager.config.get("ldap_binddn")),
-        "--bindPassword {}".format(passwd),
-        "-Z",
-        "-X",
-        "--searchScope base",
-        "'(objectclass=*)' 1.1",
-    ])
-    return exec_cmd(cmd)
-
-
 def sync_ldap_pkcs12():
     dest = manager.config.get("ldapTrustStoreFn")
     manager.secret.to_file("ldap_pkcs12_base64", dest, decode=True, binary_mode=True)
@@ -336,7 +246,7 @@ def require_statistic():
 
 
 def main():
-    server = guess_host_addr()
+    # server = guess_host_addr()
 
     # the plain-text admin password is not saved in KV storage,
     # but we have the encoded one
@@ -394,21 +304,6 @@ def main():
                 index_opendj("userRoot", data)
                 if require_site():
                     index_opendj("site", data)
-
-    with ds_context():
-        ldaps_port = manager.config.get("ldaps_port")
-        for peer in get_ldap_peers(manager):
-            # skip if peer is current server
-            if peer == server:
-                continue
-            # if peer is not active, skip and try another one
-            out, err, code = check_connection(peer, ldaps_port)
-            if code != 0:
-                logger.warn("unable to connect to peer; reason={}".format(err))
-                continue
-            # replicate from active server, no need to replicate from remaining peer
-            replicate_from(peer, server)
-            break
 
     # post-installation cleanup
     for f in [DEFAULT_ADMIN_PW_PATH, "/opt/opendj/opendj-setup.properties"]:
