@@ -11,7 +11,6 @@ from settings import LOGGING_CONFIG
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
-from pygluu.containerlib.utils import as_boolean
 
 GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
 GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
@@ -119,7 +118,7 @@ def get_datasources(sources):
         if src.startswith("Replication"):
             repl = src.split(":")[-1].strip()
             status = bool(repl.lower() == "enabled")
-            datasources[dn] = {"replication": status}
+            datasources[dn] = {"replicated": status}
 
     return datasources
 
@@ -151,18 +150,24 @@ def main():
             time.sleep(interval)
             continue
 
-        peers = get_ldap_peers(manager)
+        datasources = {
+            k: v for k, v in get_datasources(out.splitlines()).iteritems()
+            if v["replicated"] is False
+        }
 
-        for peer in peers:
+        # no empty db
+        if not datasources:
+            logger.info("All databases have been populated")
+            break
+
+        for peer in get_ldap_peers(manager):
             # skip if peer is current server
             if peer == server:
                 continue
 
-            # replicate from server that has data
-            datasources = get_datasources(out.splitlines())
             for dn, repl in datasources.iteritems():
                 # skip if already replicated
-                if repl["replication"]:
+                if repl["replicated"]:
                     continue
 
                 _, err, code = check_base_dn(peer, ldaps_port, dn)
@@ -171,6 +176,7 @@ def main():
                                 "reason={}".format(dn, peer, err))
                     continue
 
+                # replicate from server that has data
                 replicate_from(peer, server, dn)
 
         # delay between next check
@@ -178,5 +184,4 @@ def main():
 
 
 if __name__ == "__main__":
-    if as_boolean(os.environ.get("GLUU_LDAP_REPL_AUTO", False)):
-        main()
+    main()
