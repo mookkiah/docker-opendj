@@ -14,6 +14,8 @@ from pygluu.containerlib.utils import exec_cmd
 
 GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
 GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
+GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
+GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("ldap_replicator")
@@ -22,11 +24,14 @@ manager = get_manager()
 
 
 def replicate_from(peer, server, base_dn):
+    """Configure replication between 2 LDAP servers.
+    """
     passwd = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
                          manager.secret.get("encoded_salt"))
 
     ldaps_port = manager.config.get("ldaps_port")
 
+    # enable replication for specific backend
     logger.info("Enabling OpenDJ replication of {} between {}:{} and {}:{}.".format(
         base_dn, peer, ldaps_port, server, ldaps_port,
     ))
@@ -57,6 +62,7 @@ def replicate_from(peer, server, base_dn):
     if code:
         logger.warn(err.strip())
 
+    # initialize replication for specific backend
     logger.info("Initializing OpenDJ replication of {} between {}:{} and {}:{}.".format(
         base_dn, peer, ldaps_port, server, ldaps_port,
     ))
@@ -81,35 +87,87 @@ def replicate_from(peer, server, base_dn):
         logger.warn(err.strip())
 
 
-def check_base_dn(host, port, dn):
-    passwd = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                         manager.secret.get("encoded_salt"))
+def check_required_entry(host, port, user, password, base_dn):
+    """Checks if entry is exist.
+    """
+    if base_dn == "o=metric":
+        dn = "ou=statistic,o=metric"
+    elif base_dn == "o=site":
+        dn = "ou=cache-refresh,o=site"
+    else:
+        passport_rp_client_id = manager.config.get("passport_rp_client_id")
+        dn = "inum={},ou=clients,o=gluu".format(passport_rp_client_id)
 
     cmd = " ".join([
         "/opt/opendj/bin/ldapsearch",
         "--hostname {}".format(host),
         "--port {}".format(port),
         "--baseDN '{}'".format(dn),
-        "--bindDN '{}'".format(manager.config.get("ldap_binddn")),
-        "--bindPassword {}".format(passwd),
+        "--bindDN '{}'".format(user),
+        "--bindPassword {}".format(password),
         "-Z",
         "-X",
         "--searchScope base",
-        "'(objectclass=*)' 1.1",
+        "'(objectClass=*)' 1.1",
     ])
     out, err, code = exec_cmd(cmd)
     return out.strip(), err.strip(), code
 
 
-def get_datasources(sources):
+def get_ldap_status(bind_dn, password):
+    cmd = "/opt/opendj/bin/status -D '{}' -w '{}' --connectTimeout 10000".format(
+        bind_dn, password,
+    )
+    out, err, code = exec_cmd(cmd)
+    return out.strip(), err.strip(), code
+
+
+def get_datasources(user, password, interval):
+    """Get backends.
+    """
+    # get status from LDAP server
+    while True:
+        out, _, code = get_ldap_status(user, password)
+        if code != 0:
+            logger.warn("Unable to get status from LDAP server; reason={}; "
+                        "retrying in {} seconds".format(out, interval))
+            time.sleep(interval)
+            continue
+        break
+
+    datasources = defaultdict(dict)
+    dn, repl, src_index = "", "", 0
+    sources = out.splitlines()
+
+    # given sources as text, usually an output from `/opt/opendj/bin/status`
+    # command, for example:
+    #
+    #            --- Connection Handlers ---
+    #    Address:Port : Protocol             : State
+    #    -------------:----------------------:---------
+    #    8989         : Replication (secure) : Enabled
+    #    0.0.0.0:1636 : LDAPS                : Enabled
+    #
+    #            --- Data Sources ---
+    #    Base DN:                      o=gluu
+    #    Backend ID:                   userRoot
+    #    Entries:                      174
+    #    Replication:                  Enabled
+    #    Missing Changes:              <not available>
+    #    Age of Oldest Missing Change: <not available>
+    #
+    # parse the text to get backends and their status
     for index, line in enumerate(sources):
         if line.find("--- Data Sources ---") > 0:
             src_index = index + 1
             break
 
-    datasources = defaultdict(dict)
-    dn, repl = "", {}
-
+    # the result (if found) would be in the following structure:
+    #
+    #    {
+    #        "o=gluu": {"replicated": True},
+    #        "o=site": {"replicated": False},
+    #    }
     for src in sources[src_index:]:
         if src.startswith("Base DN"):
             dn = src.split(":")[-1].strip()
@@ -119,64 +177,57 @@ def get_datasources(sources):
             repl = src.split(":")[-1].strip()
             status = bool(repl.lower() == "enabled")
             datasources[dn] = {"replicated": status}
-
     return datasources
+
+
+def get_repl_interval():
+    try:
+        interval = int(os.environ.get("GLUU_LDAP_REPL_CHECK_INTERVAL", 10))
+    except TypeError:
+        interval = 10
+    return max(1, interval)
 
 
 def main():
     server = guess_host_addr()
     ldaps_port = manager.config.get("ldaps_port")
-
-    try:
-        interval = int(os.environ.get("GLUU_LDAP_REPL_CHECK_INTERVAL", 10))
-    except TypeError:
-        interval = 10
-
-    if interval < 1:
-        interval = 10
+    ldap_user = manager.config.get("ldap_binddn")
+    ldap_password = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
+                                manager.secret.get("encoded_salt"))
+    interval = get_repl_interval()
 
     while True:
-        # check if replication has been enabled
-        cmd = "/opt/opendj/bin/status -D '{}' -w '{}' --connectTimeout 10000".format(
-            manager.config.get("ldap_binddn"),
-            decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                        manager.secret.get("encoded_salt")),
-        )
-        out, _, code = exec_cmd(cmd)
+        peers = [peer for peer in get_ldap_peers(manager) if peer != server]
 
-        if code != 0:
-            logger.warn("Unable to check replication status; reason={}; "
-                        "retrying in {} seconds".format(out.strip(), interval))
-            time.sleep(interval)
-            continue
+        for peer in peers:
+            logger.info("Checking replicated backends")
 
-        datasources = {
-            k: v for k, v in get_datasources(out.splitlines()).iteritems()
-            if v["replicated"] is False
-        }
+            datasources = get_datasources(ldap_user, ldap_password, interval)
+            non_repl_backends = {
+                k: v for k, v in datasources.iteritems()
+                if v["replicated"] is False
+            }
 
-        # no empty db
-        if not datasources:
-            logger.info("All databases have been populated")
-            break
+            # if there's no backend that need to be replicated, skip the rest of the process;
+            # note, in some cases the Generation ID will be different due to mismatched data structure
+            # to fix this issue we can re-init replication manually; please refer to
+            # https://backstage.forgerock.com/knowledge/kb/article/a36616593 for details
+            if not non_repl_backends:
+                logger.info("All required backends have been replicated")
+                return
 
-        for peer in get_ldap_peers(manager):
-            # skip if peer is current server
-            if peer == server:
-                continue
-
-            for dn, repl in datasources.iteritems():
-                # skip if already replicated
-                if repl["replicated"]:
-                    continue
-
-                _, err, code = check_base_dn(peer, ldaps_port, dn)
+            for dn, _ in non_repl_backends.iteritems():
+                _, err, code = check_required_entry(
+                    peer, ldaps_port, ldap_user, ldap_password, dn,
+                )
                 if code != 0:
-                    logger.warn("Unable to check base DN {} at LDAP server {}:1636; "
-                                "reason={}".format(dn, peer, err))
+                    logger.warn("Unable to get required entry at LDAP server {}:1636; "
+                                "reason={}".format(peer, err))
                     continue
 
-                # replicate from server that has data
+                # replicate from server that has data; note: can't assume the
+                # whole replication process is succeed, hence subsequence checks
+                # will be executed
                 replicate_from(peer, server, dn)
 
         # delay between next check
