@@ -14,8 +14,6 @@ from pygluu.containerlib.utils import exec_cmd
 
 GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
 GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
-GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
-GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("ldap_replicator")
@@ -122,7 +120,7 @@ def get_ldap_status(bind_dn, password):
     return out.strip(), err.strip(), code
 
 
-def get_datasources(user, password, interval):
+def get_datasources(user, password, interval, non_repl_only=True):
     """Get backends.
     """
     # get status from LDAP server
@@ -135,12 +133,10 @@ def get_datasources(user, password, interval):
             continue
         break
 
-    datasources = defaultdict(dict)
-    dn, repl, src_index = "", "", 0
     sources = out.splitlines()
+    src_index = 0
 
-    # given sources as text, usually an output from `/opt/opendj/bin/status`
-    # command, for example:
+    # given sources as text:
     #
     #            --- Connection Handlers ---
     #    Address:Port : Protocol             : State
@@ -162,11 +158,15 @@ def get_datasources(user, password, interval):
             src_index = index + 1
             break
 
-    # the result (if found) would be in the following structure:
+    datasources = defaultdict(dict)
+    dn = ""
+
+    # the result (if found) would be in the following structure, for example:
     #
     #    {
-    #        "o=gluu": {"replicated": True},
-    #        "o=site": {"replicated": False},
+    #        "o=gluu": {"replicated": True, "entries": 1},
+    #        "o=site": {"replicated": False, "entries": 0},
+    #        "o=metric": {"replicated": True, "entries": 0},
     #    }
     for src in sources[src_index:]:
         if src.startswith("Base DN"):
@@ -176,7 +176,23 @@ def get_datasources(user, password, interval):
         if src.startswith("Replication"):
             repl = src.split(":")[-1].strip()
             status = bool(repl.lower() == "enabled")
-            datasources[dn] = {"replicated": status}
+            datasources[dn]["repl_enabled"] = status
+
+        if src.startswith("Entries"):
+            entry_num = src.split(":")[-1].strip()
+            datasources[dn]["entries"] = int(entry_num)
+
+    datasources = {
+        k: v for k, v in datasources.iteritems()
+        if k in ("o=gluu", "o=site", "o=metric")
+    }
+
+    if non_repl_only:
+        datasources = {
+            k: v for k, v in datasources.iteritems()
+            if any([v["repl_enabled"] is False,
+                    v["entries"] == 0])
+        }
     return datasources
 
 
@@ -203,20 +219,16 @@ def main():
             logger.info("Checking replicated backends")
 
             datasources = get_datasources(ldap_user, ldap_password, interval)
-            non_repl_backends = {
-                k: v for k, v in datasources.iteritems()
-                if v["replicated"] is False
-            }
 
             # if there's no backend that need to be replicated, skip the rest of the process;
             # note, in some cases the Generation ID will be different due to mismatched data structure
             # to fix this issue we can re-init replication manually; please refer to
             # https://backstage.forgerock.com/knowledge/kb/article/a36616593 for details
-            if not non_repl_backends:
+            if not datasources:
                 logger.info("All required backends have been replicated")
                 return
 
-            for dn, _ in non_repl_backends.iteritems():
+            for dn, _ in datasources.iteritems():
                 _, err, code = check_required_entry(
                     peer, ldaps_port, ldap_user, ldap_password, dn,
                 )
