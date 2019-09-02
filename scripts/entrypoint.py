@@ -87,6 +87,7 @@ def configure_opendj():
         'set-global-configuration-prop --set single-structural-objectclass-behavior:accept',
         'set-password-policy-prop --policy-name "Default Password Policy" --set allow-pre-encoded-passwords:true',
         'set-log-publisher-prop --publisher-name "File-Based Audit Logger" --set enabled:true',
+        'create-backend --backend-name metric --set base-dn:o=metric --type je --set enabled:true --set db-cache-percent:10',
 
         'set-connection-handler-prop --handler-name "LDAP Connection Handler" --set enabled:false',
         'set-connection-handler-prop --handler-name "JMX Connection Handler" --set enabled:false',
@@ -110,11 +111,6 @@ def configure_opendj():
     if require_site():
         config_mods.append(
             'create-backend --backend-name site --set base-dn:o=site --type je --set enabled:true --set db-cache-percent:20',
-        )
-
-    if require_statistic():
-        config_mods.append(
-            'create-backend --backend-name metric --set base-dn:o=metric --type je --set enabled:true --set db-cache-percent:10',
         )
 
     hostname = guess_host_addr()
@@ -233,14 +229,6 @@ def require_site():
     if GLUU_PERSISTENCE_TYPE == "ldap":
         return True
     if GLUU_PERSISTENCE_TYPE == "hybrid" and GLUU_PERSISTENCE_LDAP_MAPPING == "site":
-        return True
-    return False
-
-
-def require_statistic():
-    if GLUU_PERSISTENCE_TYPE == "ldap":
-        return True
-    if GLUU_PERSISTENCE_TYPE == "hybrid" and GLUU_PERSISTENCE_LDAP_MAPPING == "statistic":
         return True
     return False
 
