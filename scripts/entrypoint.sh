@@ -1,6 +1,33 @@
 #!/bin/sh
 set -e
 
+# =========
+# FUNCTIONS
+# =========
+
+run_wait() {
+    python /app/scripts/wait.py
+}
+
+run_entrypoint() {
+    if [ ! -f /deploy/touched ]; then
+        python /app/scripts/entrypoint.py
+        touch /deploy/touched
+    fi
+}
+
+run_ldap_peer() {
+    python /app/scripts/ldap_peer.py
+}
+
+run_ldap_replicator() {
+    python /app/scripts/ldap_replicator.py &
+}
+
+# ==========
+# ENTRYPOINT
+# ==========
+
 cat << LICENSE_ACK
 
 # ================================================================================================ #
@@ -10,61 +37,20 @@ cat << LICENSE_ACK
 
 LICENSE_ACK
 
-# check persistence type
-case "${GLUU_PERSISTENCE_TYPE}" in
-    ldap|hybrid)
-        ;;
-    *)
-        echo "unsupported GLUU_PERSISTENCE_TYPE value; please choose 'ldap' or 'hybrid'"
-        exit 1
-        ;;
-esac
-
-# check mapping used by ldap
-if [ "${GLUU_PERSISTENCE_TYPE}" = "hybrid" ]; then
-    case "${GLUU_PERSISTENCE_LDAP_MAPPING}" in
-        default|user|cache|site|token)
-            ;;
-        *)
-            echo "unsupported GLUU_PERSISTENCE_LDAP_MAPPING value; please choose 'default', 'user', 'cache', 'site', or 'token'"
-            exit 1
-            ;;
-    esac
-fi
-
-# run wait_for functions
-deps="config,secret"
-if [ -f /etc/redhat-release ]; then
-    source scl_source enable python27 && gluu-wait --deps="$deps"
-else
-    gluu-wait --deps="$deps"
-fi
-
-# run Python entrypoint
 mkdir -p /opt/opendj/locks
 
-export JAVA_VERSION=$(java -version 2>&1 | awk -F[\"_] 'NR==1{print $2}')
-
-if [ ! -f /deploy/touched ]; then
-    # backward-compat
-    if [ -f /touched ]; then
-        mv /touched /deploy/touched
-    else
-        if [ -f /etc/redhat-release ]; then
-            source scl_source enable python27 && python /app/scripts/entrypoint.py
-        else
-            python /app/scripts/entrypoint.py
-        fi
-        touch /deploy/touched
-    fi
-fi
+export JAVA_VERSION=$(java -version 2>&1 | awk -F '[\"_]' 'NR==1{print $2}')
 
 if [ -f /etc/redhat-release ]; then
-    source scl_source enable python27 && python /app/scripts/ldap_peer.py
-    source scl_source enable python27 && python /app/scripts/ldap_replicator.py &
+    source scl_source enable python27 && run_wait
+    source scl_source enable python27 && run_entrypoint
+    source scl_source enable python27 && run_ldap_peer
+    source scl_source enable python27 && run_ldap_replicator
 else
-    python /app/scripts/ldap_peer.py
-    python /app/scripts/ldap_replicator.py &
+    run_wait
+    run_entrypoint
+    run_ldap_peer
+    run_ldap_replicator
 fi
 
 # run OpenDJ server
