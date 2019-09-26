@@ -4,11 +4,9 @@ FROM openjdk:8-jre-alpine3.9
 # Alpine packages
 # ===============
 
-RUN apk update && apk add --no-cache \
-    py-pip \
-    openssl \
-    shadow \
-    git
+RUN apk update \
+    && apk add --no-cache py-pip openssl \
+    && apk add --no-cache --virtual build-deps shadow git
 
 # ======
 # WrenDS
@@ -37,6 +35,13 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install -U pip \
     && pip install -r /tmp/requirements.txt --no-cache-dir \
     && apk del git
+
+# =======
+# License
+# =======
+
+RUN apk del build-deps \
+    && rm -rf /var/cache/apk/*
 
 # =======
 # License
@@ -100,16 +105,12 @@ ENV GLUU_PERSISTENCE_TYPE=ldap \
 # Generic ENV
 # ===========
 
-ENV GLUU_CACHE_TYPE=IN_MEMORY \
-    GLUU_REDIS_URL=localhost:6379 \
-    GLUU_REDIS_TYPE=STANDALONE \
-    GLUU_MEMCACHED_URL=localhost:11211 \
+ENV GLUU_LDAP_ADVERTISE_ADDR="" \
     GLUU_LDAP_ADDR_INTERFACE="" \
-    GLUU_LDAP_ADVERTISE_ADDR="" \
-    GLUU_OXTRUST_CONFIG_GENERATION=true \
     GLUU_ADMIN_PORT=4444 \
     GLUU_REPLICATION_PORT=8989 \
     GLUU_JMX_PORT=1689 \
+    GLUU_LDAP_REPL_CHECK_INTERVAL=10 \
     GLUU_WAIT_MAX_TIME=300 \
     GLUU_WAIT_SLEEP_DURATION=10
 
