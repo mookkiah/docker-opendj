@@ -395,6 +395,9 @@ def get_certificate_san(certpath):
 
 
 def cleanup_config_dir():
+    if not os.path.exists("/opt/opendj/config"):
+        return
+
     # When mounting certain volumes, OpenDJ installation will fail to install
     # as the mounted volume may have some residual information for some reason
     # (i.e. Amazon ElasticBlockStorage's "lost+found" directory). This only
