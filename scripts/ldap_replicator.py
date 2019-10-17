@@ -11,6 +11,7 @@ from settings import LOGGING_CONFIG
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
+from pygluu.containerlib.utils import as_boolean
 
 GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
 GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
@@ -205,6 +206,10 @@ def get_repl_interval():
 
 
 def main():
+    auto_repl = as_boolean(os.environ.get("GLUU_LDAP_AUTO_REPLICATE", True))
+    if not auto_repl:
+        return
+
     server = guess_host_addr()
     ldaps_port = manager.config.get("ldaps_port")
     ldap_user = manager.config.get("ldap_binddn")
