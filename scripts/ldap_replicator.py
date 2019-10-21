@@ -208,6 +208,7 @@ def get_repl_interval():
 def main():
     auto_repl = as_boolean(os.environ.get("GLUU_LDAP_AUTO_REPLICATE", True))
     if not auto_repl:
+        logger.warn("Auto replication is disabled; skipping replication check")
         return
 
     server = guess_host_addr()

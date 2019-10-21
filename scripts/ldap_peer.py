@@ -1,3 +1,5 @@
+import logging
+import logging.config
 import struct
 import fcntl
 import json
@@ -5,10 +7,12 @@ import os
 import socket
 
 from pygluu.containerlib import get_manager
+from pygluu.containerlib.utils import as_boolean
 
+from settings import LOGGING_CONFIG
 
-GLUU_LDAP_ADDR_INTERFACE = os.environ.get("GLUU_LDAP_ADDR_INTERFACE", "")
-GLUU_LDAP_ADVERTISE_ADDR = os.environ.get("GLUU_LDAP_ADVERTISE_ADDR", "")
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger("ldap_peer")
 
 
 def get_ip_addr(ifname):
@@ -25,7 +29,9 @@ def get_ip_addr(ifname):
 
 
 def guess_host_addr():
-    addr = GLUU_LDAP_ADVERTISE_ADDR or get_ip_addr(GLUU_LDAP_ADDR_INTERFACE) or socket.getfqdn()
+    addr_interface = os.environ.get("GLUU_LDAP_ADDR_INTERFACE", "")
+    advertise_addr = os.environ.get("GLUU_LDAP_ADVERTISE_ADDR", "")
+    addr = advertise_addr or get_ip_addr(addr_interface) or socket.getfqdn()
     return addr
 
 
@@ -40,9 +46,18 @@ def register_ldap_peer(manager, hostname):
     manager.config.set("ldap_peers", list(peers))
 
 
-if __name__ == "__main__":
+def main():
+    auto_repl = as_boolean(os.environ.get("GLUU_LDAP_AUTO_REPLICATE", True))
+    if not auto_repl:
+        logger.warn("Auto replication is disabled; skipping server registration")
+        return
+
     manager = get_manager()
     server = guess_host_addr()
 
     # register current server for discovery
     register_ldap_peer(manager, server)
+
+
+if __name__ == "__main__":
+    main()
