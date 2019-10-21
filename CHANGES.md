@@ -2,6 +2,15 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 4.0.0_01
+
+Released on October 22nd, 2019.
+
+* Upgraded to Gluu Server 4.0.
+* Switched to Wren:DS variant instead of OpenDJ.
+* The `entrypoint` doesn't import initial data in favor of https://github.com/GluuFederation/docker-persistence.
+* Replication is configured automatically unless disabled by using environment variable `GLUU_LDAP_AUTO_REPLICATE` (default to `true`). Enabling this feature also registers the server as peer for replication discovery.
+
 ## Version 3.1.6_02
 
 Released on May 10th, 2019.
