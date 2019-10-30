@@ -33,8 +33,7 @@ RUN wget -q https://github.com/krallin/tini/releases/download/v0.18.0/tini-stati
 
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install -U pip \
-    && pip install -r /tmp/requirements.txt --no-cache-dir \
-    && apk del git
+    && pip install -r /tmp/requirements.txt --no-cache-dir
 
 # =======
 # License
