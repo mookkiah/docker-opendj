@@ -28,15 +28,6 @@ run_ldap_replicator() {
 # ENTRYPOINT
 # ==========
 
-cat << LICENSE_ACK
-
-# ================================================================================= #
-# Gluu License Agreement: https://www.gluu.org/support-license/                     #
-# The use of Gluu Server Enterprise Edition is subject to the Gluu Support License. #
-# ================================================================================= #
-
-LICENSE_ACK
-
 mkdir -p /opt/opendj/locks
 
 export JAVA_VERSION=$(java -version 2>&1 | awk -F '[\"_]' 'NR==1{print $2}')
