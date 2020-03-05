@@ -4,7 +4,7 @@ Docker image packaging for OpenDJ/Wren:DS.
 
 ## Versions
 
-- Stable: N/A
+- Stable: `gluufederation/wrends:4.1.0_01`
 - Unstable: `gluufederation/wrends:4.1.0_dev`
 
 Refer to [Changelog](./CHANGES.md) for details on new features, bug fixes, or older releases.

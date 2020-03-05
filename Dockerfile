@@ -5,8 +5,8 @@ FROM openjdk:8-jre-alpine3.9
 # ===============
 
 RUN apk update \
-    && apk add --no-cache py-pip openssl \
-    && apk add --no-cache --virtual build-deps shadow git
+    && apk add --no-cache openssl py-pip \
+    && apk add --no-cache --virtual build-deps wget git
 
 # ======
 # WrenDS
@@ -122,7 +122,7 @@ LABEL name="Wren:DS" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
     version="4.1.0" \
-    release="dev" \
+    release="01" \
     summary="Gluu Wren:DS" \
     description="Community fork of OpenDJ, an LDAP server originally developed by ForgeRock"
 
