@@ -26,7 +26,7 @@ def replicate_from(peer, server, base_dn):
     """Configure replication between 2 LDAP servers.
     """
     passwd = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                         manager.secret.get("encoded_salt"))
+                         manager.secret.get("encoded_salt")).decode()
 
     ldaps_port = manager.config.get("ldaps_port")
 
@@ -184,13 +184,13 @@ def get_datasources(user, password, interval, non_repl_only=True):
             datasources[dn]["entries"] = int(entry_num)
 
     datasources = {
-        k: v for k, v in datasources.iteritems()
+        k: v for k, v in datasources.items()
         if k in ("o=gluu", "o=site", "o=metric")
     }
 
     if non_repl_only:
         datasources = {
-            k: v for k, v in datasources.iteritems()
+            k: v for k, v in datasources.items()
             if any([v["repl_enabled"] is False,
                     v["entries"] == 0])
         }
@@ -215,7 +215,7 @@ def main():
     ldaps_port = manager.config.get("ldaps_port")
     ldap_user = manager.config.get("ldap_binddn")
     ldap_password = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                                manager.secret.get("encoded_salt"))
+                                manager.secret.get("encoded_salt")).decode()
     interval = get_repl_interval()
 
     while True:
@@ -234,7 +234,7 @@ def main():
                 logger.info("All required backends have been replicated")
                 return
 
-            for dn, _ in datasources.iteritems():
+            for dn, _ in datasources.items():
                 _, err, code = check_required_entry(
                     peer, ldaps_port, ldap_user, ldap_password, dn,
                 )

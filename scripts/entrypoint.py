@@ -45,7 +45,7 @@ def install_opendj():
     with open("/app/templates/opendj-setup.properties") as fr:
         content = fr.read() % ctx
 
-        with open("/opt/opendj/opendj-setup.properties", "wb") as fw:
+        with open("/opt/opendj/opendj-setup.properties", "w") as fw:
             fw.write(content)
 
     # 2) run installer
@@ -57,13 +57,13 @@ def install_opendj():
         "--propertiesFilePath /opt/opendj/opendj-setup.properties",
         "--usePkcs12keyStore /etc/certs/opendj.pkcs12",
         "--keyStorePassword {}".format(
-            decode_text(manager.secret.get("encoded_ldapTrustStorePass"), manager.secret.get("encoded_salt"))
+            decode_text(manager.secret.get("encoded_ldapTrustStorePass"), manager.secret.get("encoded_salt")).decode()
         ),
         "--doNotStart",
     ])
     out, err, code = exec_cmd(cmd)
     if code and err:
-        logger.warn(err)
+        logger.warning(err)
 
     if all([os.environ.get("JAVA_VERSION", "") >= "1.8.0",
             os.path.isfile("/opt/opendj/config/config.ldif")]):
@@ -75,7 +75,7 @@ def install_opendj():
 def run_dsjavaproperties():
     _, err, code = exec_cmd("/opt/opendj/bin/dsjavaproperties")
     if code and err:
-        logger.warn(err)
+        logger.warning(err)
 
 
 def configure_opendj():
@@ -129,7 +129,7 @@ def configure_opendj():
         ])
         _, err, code = exec_cmd(cmd)
         if code:
-            logger.warn(err)
+            logger.warning(err)
 
 
 def index_opendj(backend, data):
@@ -161,7 +161,7 @@ def index_opendj(backend, data):
                 ])
                 _, err, code = exec_cmd(index_cmd)
                 if code:
-                    logger.warn(err)
+                    logger.warning(err)
 
 
 def sync_ldap_pkcs12():
@@ -187,7 +187,7 @@ def ds_context():
         DEFAULT_ADMIN_PW_PATH,
     )
     out, err, code = exec_cmd(cmd)
-    running = out.startswith("Unable to connect to the server")
+    running = out.decode().startswith("Unable to connect to the server")
 
     if not running:
         exec_cmd("/opt/opendj/bin/start-ds")
@@ -314,7 +314,7 @@ def render_san_cnf(name):
 def regenerate_ldap_certs():
     suffix = "opendj"
     passwd = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                         manager.secret.get("encoded_salt"))
+                         manager.secret.get("encoded_salt")).decode()
     country_code = manager.config.get("country_code")
     state = manager.config.get("state")
     city = manager.config.get("city")
@@ -380,7 +380,7 @@ def regenerate_ldap_pkcs12():
     assert retcode == 0, "Failed to generate PKCS12 file; reason={}".format(err)
 
 
-def get_certificate_san(certpath):
+def get_certificate_san(certpath) -> str:
     openssl_proc = subprocess.Popen(
         shlex.split("openssl x509 -text -noout -in {}".format(certpath)),
         stdout=subprocess.PIPE,
@@ -391,7 +391,7 @@ def get_certificate_san(certpath):
         stdin=openssl_proc.stdout,
     )
     san = grep_proc.communicate()[0]
-    return san.strip()
+    return san.strip().decode()
 
 
 def cleanup_config_dir():
@@ -407,14 +407,14 @@ def cleanup_config_dir():
 
     for obj in subtree:
         path = "/opt/opendj/config/{0}".format(obj)
-        logger.warn(
+        logger.warning(
             "Found {0} in '/opt/opendj/config/' volume mount. "
             "/opt/opendj/config should be empty for a successful "
             "installation.".format(path)
         )
 
         if obj != "lost+found":
-            logger.warn(
+            logger.warning(
                 "{0} will not be removed. Please manually remove any "
                 "data from the volume mount for /opt/opendj/config/.".format(path)
             )
@@ -430,7 +430,7 @@ def cleanup_config_dir():
         except Exception as exc:
             # Unforeseen information in the config/ dir will be logged and
             # prompt the administrator to deal with their issue.
-            logger.warn(exc)
+            logger.warning(exc)
 
 
 def is_wrends():

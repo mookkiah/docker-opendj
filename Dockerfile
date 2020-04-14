@@ -5,7 +5,9 @@ FROM openjdk:8-jre-alpine3.9
 # ===============
 
 RUN apk update \
-    && apk add --no-cache openssl py-pip \
+    && apk add --no-cache openssl py3-pip \
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && ln -sf /usr/bin/pip3 /usr/bin/pip \
     && apk add --no-cache --virtual build-deps wget git
 
 # ======
@@ -121,8 +123,8 @@ ENV GLUU_LDAP_ADVERTISE_ADDR="" \
 LABEL name="Wren:DS" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
-    version="4.1.1" \
-    release="01" \
+    version="4.2.0" \
+    release="dev" \
     summary="Gluu Wren:DS" \
     description="Community fork of OpenDJ, an LDAP server originally developed by ForgeRock"
 
