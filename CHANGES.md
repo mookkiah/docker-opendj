@@ -4,6 +4,13 @@ Here you can see an overview of changes between each release.
 
 ## Version 4.1.1_01
 
+Released on March 29th, 2020.
+
+* Added new index for expiration.
+* Added schema for oxDocumentStoreConfiguration attribute.
+
+## Version 4.1.1_01
+
 Released on March 24th, 2020.
 
 * Conformed to Gluu Server v4.1.1.
