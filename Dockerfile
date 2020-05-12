@@ -6,16 +6,16 @@ FROM openjdk:8-jre-alpine3.9
 
 RUN apk update \
     && apk add --no-cache openssl py3-pip \
+    && apk add --no-cache --virtual build-deps wget git \
     && ln -sf /usr/bin/python3 /usr/bin/python \
-    && ln -sf /usr/bin/pip3 /usr/bin/pip \
-    && apk add --no-cache --virtual build-deps wget git
+    && ln -sf /usr/bin/pip3 /usr/bin/pip
 
 # ======
 # WrenDS
 # ======
 
-ENV WRENDS_VERSION=4.0.0-M3 \
-    WRENDS_BUILD_DATE=2019-07-29
+ARG WRENDS_VERSION=4.0.0-M3
+ARG WRENDS_BUILD_DATE=2019-07-29
 
 RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${WRENDS_VERSION}/opendj-server-legacy-${WRENDS_VERSION}.zip -P /tmp \
    && mkdir -p /opt \
