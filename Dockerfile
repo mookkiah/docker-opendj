@@ -1,5 +1,9 @@
-# FROM openjdk:8-jre-alpine3.9
 FROM adoptopenjdk/openjdk11:alpine-jre
+
+# symlink JVM
+RUN mkdir -p /usr/lib/jvm/default-jvm /usr/java/latest \
+    && ln -sf /opt/java/openjdk /usr/lib/jvm/default-jvm/jre \
+    && ln -sf /usr/lib/jvm/default-jvm/jre /usr/java/latest/jre
 
 # ===============
 # Alpine packages
@@ -22,13 +26,6 @@ RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/
    && mkdir -p /opt \
    && unzip -qq /tmp/opendj-server-legacy-${WRENDS_VERSION}.zip -d /opt \
    && rm -f /tmp/opendj-server-legacy-${WRENDS_VERSION}.zip
-
-# ====
-# # Tini
-# # ====
-
-# RUN wget -q https://github.com/krallin/tini/releases/download/v0.18.0/tini-static -O /usr/bin/tini \
-#     && chmod +x /usr/bin/tini
 
 # ======
 # Python
@@ -134,23 +131,6 @@ COPY schemas/*.ldif /opt/opendj/template/config/schema/
 COPY templates /app/templates
 COPY scripts /app/scripts
 RUN chmod +x /app/scripts/entrypoint.sh
-
-# # create ldap user
-# RUN useradd -ms /bin/sh --uid 1000 ldap \
-#     && usermod -a -G root ldap
-
-# # adjust ownership
-# RUN chown -R 1000:1000 /opt/opendj \
-#     && chown -R 1000:1000 /flag \
-#     && chown -R 1000:1000 /deploy \
-#     && chgrp -R 0 /opt/opendj && chmod -R g=u /opt/opendj \
-#     && chgrp -R 0 /flag && chmod -R g=u /flag \
-#     && chgrp -R 0 /deploy && chmod -R g=u /deploy \
-#     && chgrp -R 0 /etc/certs && chmod -R g=u /etc/certs \
-#     && chgrp -R 0 /etc/ssl && chmod -R g=u /etc/ssl
-
-# # run as non-root user
-# USER 1000
 
 ENTRYPOINT ["tini", "-g", "--"]
 CMD ["sh", "/app/scripts/entrypoint.sh"]
