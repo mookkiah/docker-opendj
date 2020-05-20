@@ -134,7 +134,7 @@ def get_datasources(user, password, interval, non_repl_only=True):
             continue
         break
 
-    sources = out.splitlines()
+    sources = out.decode().splitlines()
     src_index = 0
 
     # given sources as text:
