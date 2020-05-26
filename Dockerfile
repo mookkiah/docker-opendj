@@ -130,5 +130,5 @@ COPY templates /app/templates
 COPY scripts /app/scripts
 RUN chmod +x /app/scripts/entrypoint.sh
 
-ENTRYPOINT ["tini", "-g", "--"]
+ENTRYPOINT ["tini", "-e", "143" ,"-g", "--"]
 CMD ["sh", "/app/scripts/entrypoint.sh"]
