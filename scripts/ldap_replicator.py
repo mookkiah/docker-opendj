@@ -59,7 +59,7 @@ def replicate_from(peer, server, base_dn):
     ])
     _, err, code = exec_cmd(enable_cmd)
     if code:
-        logger.warn(err.strip())
+        logger.warning(err.strip())
 
     # initialize replication for specific backend
     logger.info("Initializing OpenDJ replication of {} between {}:{} and {}:{}.".format(
@@ -83,7 +83,7 @@ def replicate_from(peer, server, base_dn):
     ])
     _, err, code = exec_cmd(init_cmd)
     if code:
-        logger.warn(err.strip())
+        logger.warning(err.strip())
 
 
 def check_required_entry(host, port, user, password, base_dn):
@@ -128,8 +128,8 @@ def get_datasources(user, password, interval, non_repl_only=True):
     while True:
         out, _, code = get_ldap_status(user, password)
         if code != 0:
-            logger.warn("Unable to get status from LDAP server; reason={}; "
-                        "retrying in {} seconds".format(out, interval))
+            logger.warning("Unable to get status from LDAP server; reason={}; "
+                           "retrying in {} seconds".format(out, interval))
             time.sleep(interval)
             continue
         break
@@ -208,7 +208,7 @@ def get_repl_interval():
 def main():
     auto_repl = as_boolean(os.environ.get("GLUU_LDAP_AUTO_REPLICATE", True))
     if not auto_repl:
-        logger.warn("Auto replication is disabled; skipping replication check")
+        logger.warning("Auto replication is disabled; skipping replication check")
         return
 
     server = guess_host_addr()
@@ -239,7 +239,7 @@ def main():
                     peer, ldaps_port, ldap_user, ldap_password, dn,
                 )
                 if code != 0:
-                    logger.warn("Unable to get required entry at LDAP server {}:1636; "
+                    logger.warning("Unable to get required entry at LDAP server {}:1636; "
                                 "reason={}".format(peer, err))
                     continue
 
