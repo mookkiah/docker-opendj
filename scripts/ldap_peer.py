@@ -15,15 +15,21 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("ldap_peer")
 
 
-def get_ip_addr(ifname):
+def get_ip_addr(ifname: str) -> str:
+    """Get IP address bind to an interface.
+
+    :param ifname: Interface name, i.e. ``eth0``
+    :return: IP address of interface otherwise empty string
+    :rtype: str
+    """
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         addr = socket.inet_ntoa(fcntl.ioctl(
             sock.fileno(),
             0x8915,  # SIOCGIFADDR
-            struct.pack('256s', ifname[:15])
+            struct.pack('256s', ifname[:15].encode())
         )[20:24])
-    except IOError:
+    except (IOError, OSError):
         addr = ""
     return addr
 
@@ -49,7 +55,7 @@ def register_ldap_peer(manager, hostname):
 def main():
     auto_repl = as_boolean(os.environ.get("GLUU_LDAP_AUTO_REPLICATE", True))
     if not auto_repl:
-        logger.warn("Auto replication is disabled; skipping server registration")
+        logger.warning("Auto replication is disabled; skipping server registration")
         return
 
     manager = get_manager()
