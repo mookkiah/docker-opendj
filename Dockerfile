@@ -29,6 +29,7 @@ RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/
 # Python
 # ======
 
+RUN apk add --no-cache py3-cryptography
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install -U pip \
     && pip3 install -r /tmp/requirements.txt --no-cache-dir
