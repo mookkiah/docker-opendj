@@ -15,7 +15,7 @@ from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
 
 GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
-GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
+# GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
 GLUU_JMX_PORT = os.environ.get("GLUU_JMX_PORT", 1689)
 GLUU_CERT_ALT_NAME = os.environ.get("GLUU_CERT_ALT_NAME", "")
 GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
@@ -142,6 +142,8 @@ def index_opendj(backend, data):
             for backend_name in attr_map["backend"]:
                 if backend_name != backend:
                     continue
+
+                logger.info(attr_name)
 
                 index_cmd = " ".join([
                     "/opt/opendj/bin/dsconfig",

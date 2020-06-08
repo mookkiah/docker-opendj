@@ -25,6 +25,17 @@ RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/
    && unzip -qq /tmp/opendj-server-legacy-${WRENDS_VERSION}.zip -d /opt \
    && rm -f /tmp/opendj-server-legacy-${WRENDS_VERSION}.zip
 
+# ====
+# Serf
+# ====
+
+ARG SERF_VERSION=0.8.2
+RUN wget -q https://releases.hashicorp.com/serf/${SERF_VERSION}/serf_${SERF_VERSION}_linux_amd64.zip -O /tmp/serf.zip \
+    && unzip -qq /tmp/serf.zip -d /tmp \
+    && cp /tmp/serf /usr/bin/serf \
+    && chmod +x /usr/bin/serf \
+    && rm -f /tmp/serf*
+
 # ======
 # Python
 # ======
@@ -104,7 +115,6 @@ ENV GLUU_PERSISTENCE_TYPE=ldap \
 # ===========
 
 ENV GLUU_LDAP_ADVERTISE_ADDR="" \
-    GLUU_LDAP_ADDR_INTERFACE="" \
     GLUU_LDAP_AUTO_REPLICATE=true \
     GLUU_ADMIN_PORT=4444 \
     GLUU_REPLICATION_PORT=8989 \
@@ -130,6 +140,8 @@ COPY schemas/*.ldif /opt/opendj/template/config/schema/
 COPY templates /app/templates
 COPY scripts /app/scripts
 RUN chmod +x /app/scripts/entrypoint.sh
+# \
+#     && chmod +x /app/scripts/serf_proxy.py
 
 ENTRYPOINT ["tini", "-e", "143" ,"-g", "--"]
 CMD ["sh", "/app/scripts/entrypoint.sh"]

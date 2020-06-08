@@ -35,21 +35,23 @@ def get_ip_addr(ifname: str) -> str:
 
 
 def guess_host_addr():
-    addr_interface = os.environ.get("GLUU_LDAP_ADDR_INTERFACE", "")
     advertise_addr = os.environ.get("GLUU_LDAP_ADVERTISE_ADDR", "")
-    addr = advertise_addr or get_ip_addr(addr_interface) or socket.getfqdn()
+    addr = advertise_addr or socket.getfqdn()
     return addr
 
 
 def get_ldap_peers(manager):
-    return json.loads(manager.config.get("ldap_peers", "[]"))
+    peers = json.loads(manager.config.get("ldap_peers", "{}"))
+    if isinstance(peers, list):
+        peers = {peer: peer for peer in peers}
+    return peers
 
 
-def register_ldap_peer(manager, hostname):
-    peers = set(get_ldap_peers(manager))
-    # add new hostname
-    peers.add(hostname)
-    manager.config.set("ldap_peers", list(peers))
+def register_ldap_peer(manager):
+    server = guess_host_addr()
+    peers = get_ldap_peers(manager)
+    peers[server] = socket.getfqdn()
+    manager.config.set("ldap_peers", peers)
 
 
 def main():
@@ -58,12 +60,11 @@ def main():
         logger.warning("Auto replication is disabled; skipping server registration")
         return
 
-    manager = get_manager()
-    server = guess_host_addr()
-
     # register current server for discovery
-    register_ldap_peer(manager, server)
+    manager = get_manager()
+    register_ldap_peer(manager)
 
 
 if __name__ == "__main__":
-    main()
+    if not as_boolean(os.environ.get("GLUU_SERF_MEMBERSHIP", False)):
+        main()

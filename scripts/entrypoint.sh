@@ -16,6 +16,13 @@ if [ ! -f /deploy/touched ]; then
     touch /deploy/touched
 fi
 
+chmod +x /app/scripts/serf_proxy.py
+serf agent \
+    -discover gluu-ldap \
+    -event-handler /app/scripts/serf_proxy.py \
+    -log-level warn \
+    -tag role=ldap &
+
 python3 /app/scripts/ldap_peer.py
 python3 /app/scripts/ldap_replicator.py &
 

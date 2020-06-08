@@ -240,7 +240,7 @@ def main():
                 )
                 if code != 0:
                     logger.warning("Unable to get required entry at LDAP server {}:1636; "
-                                "reason={}".format(peer, err))
+                                   "reason={}".format(peer, err))
                     continue
 
                 # replicate from server that has data; note: can't assume the
@@ -253,4 +253,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if not as_boolean(os.environ.get("GLUU_SERF_MEMBERSHIP", False)):
+        main()
