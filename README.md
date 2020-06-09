@@ -4,7 +4,7 @@ Docker image packaging for OpenDJ/Wren:DS.
 
 ## Versions
 
-- Stable: `gluufederation/wrends:4.1.1_02`
+- Stable: `N/A`
 - Unstable: `gluufederation/wrends:4.2.0_dev`
 
 Refer to [Changelog](./CHANGES.md) for details on new features, bug fixes, or older releases.
@@ -52,8 +52,6 @@ The following environment variables are supported by the container:
 Starting from v4, the container will not import the initial data into LDAP. Use `gluufederation/persistence` container to do so.
 
 ## LDAP Replication
-
-Note that replication requires each unique address per container. In Kubernetes, use Statefulset to achieve unique and predictable hostname. For Docker, set unique container hostname instead.
 
 The replication process is automatically run when the container runs, only if these conditions are met:
 
