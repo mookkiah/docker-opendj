@@ -2,10 +2,9 @@ import logging
 import logging.config
 import os
 import time
+import socket
 from collections import defaultdict
 
-from ldap_peer import get_ldap_peers
-from ldap_peer import guess_host_addr
 from settings import LOGGING_CONFIG
 
 from pygluu.containerlib import get_manager
@@ -25,10 +24,13 @@ manager = get_manager()
 def replicate_from(peer, server, base_dn):
     """Configure replication between 2 LDAP servers.
     """
-    passwd = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                         manager.secret.get("encoded_salt")).decode()
+    passwd = decode_text(
+        manager.secret.get("encoded_ox_ldap_pw"),
+        manager.secret.get("encoded_salt"),
+    ).decode()
 
     ldaps_port = manager.config.get("ldaps_port")
+    ldap_binddn = manager.config.get("ldap_binddn")
 
     # enable replication for specific backend
     logger.info("Enabling OpenDJ replication of {} between {}:{} and {}:{}.".format(
@@ -40,13 +42,13 @@ def replicate_from(peer, server, base_dn):
         "enable",
         "--host1 {}".format(peer),
         "--port1 {}".format(GLUU_ADMIN_PORT),
-        "--bindDN1 '{}'".format(manager.config.get("ldap_binddn")),
+        "--bindDN1 '{}'".format(ldap_binddn),
         "--bindPassword1 {}".format(passwd),
         "--replicationPort1 {}".format(GLUU_REPLICATION_PORT),
         "--secureReplication1",
         "--host2 {}".format(server),
         "--port2 {}".format(GLUU_ADMIN_PORT),
-        "--bindDN2 '{}'".format(manager.config.get("ldap_binddn")),
+        "--bindDN2 '{}'".format(ldap_binddn),
         "--bindPassword2 {}".format(passwd),
         "--secureReplication2",
         "--adminUID admin",
@@ -59,7 +61,7 @@ def replicate_from(peer, server, base_dn):
     ])
     _, err, code = exec_cmd(enable_cmd)
     if code:
-        logger.warning(err.strip())
+        logger.warning(err.decode().strip())
 
     # initialize replication for specific backend
     logger.info("Initializing OpenDJ replication of {} between {}:{} and {}:{}.".format(
@@ -83,7 +85,7 @@ def replicate_from(peer, server, base_dn):
     ])
     _, err, code = exec_cmd(init_cmd)
     if code:
-        logger.warning(err.strip())
+        logger.warning(err.decode().strip())
 
 
 def check_required_entry(host, port, user, password, base_dn):
@@ -128,8 +130,10 @@ def get_datasources(user, password, interval, non_repl_only=True):
     while True:
         out, _, code = get_ldap_status(user, password)
         if code != 0:
-            logger.warning("Unable to get status from LDAP server; reason={}; "
-                           "retrying in {} seconds".format(out, interval))
+            logger.warning(
+                "Unable to get status from LDAP server; reason={}; "
+                "retrying in {} seconds".format(out.decode(), interval)
+            )
             time.sleep(interval)
             continue
         break
@@ -205,13 +209,28 @@ def get_repl_interval():
     return max(1, interval)
 
 
+def get_ldap_peers(alive_only=True):
+    out, err, code = exec_cmd("serf members")
+    if code != 0:
+        logger.warning(f"Unable to get peers; reason={err.decode()}")
+        return []
+
+    peers = []
+    for line in out.decode().splitlines():
+        peer = line.split()
+        if alive_only and peer[2] != "alive":
+            continue
+        peers.append(peer[0])
+    return peers
+
+
 def main():
     auto_repl = as_boolean(os.environ.get("GLUU_LDAP_AUTO_REPLICATE", True))
     if not auto_repl:
         logger.warning("Auto replication is disabled; skipping replication check")
         return
 
-    server = guess_host_addr()
+    server = socket.getfqdn()
     ldaps_port = manager.config.get("ldaps_port")
     ldap_user = manager.config.get("ldap_binddn")
     ldap_password = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
@@ -219,7 +238,7 @@ def main():
     interval = get_repl_interval()
 
     while True:
-        peers = [peer for peer in get_ldap_peers(manager) if peer != server]
+        peers = [peer for peer in get_ldap_peers() if peer != server]
 
         for peer in peers:
             logger.info("Checking replicated backends")
@@ -239,8 +258,10 @@ def main():
                     peer, ldaps_port, ldap_user, ldap_password, dn,
                 )
                 if code != 0:
-                    logger.warning("Unable to get required entry at LDAP server {}:1636; "
-                                   "reason={}".format(peer, err))
+                    logger.warning(
+                        "Unable to get required entry at LDAP server {}:1636; "
+                        "reason={}".format(peer, err.decode())
+                    )
                     continue
 
                 # replicate from server that has data; note: can't assume the
@@ -253,5 +274,4 @@ def main():
 
 
 if __name__ == "__main__":
-    if not as_boolean(os.environ.get("GLUU_SERF_MEMBERSHIP", False)):
-        main()
+    main()

@@ -17,24 +17,15 @@ LOGGING_CONFIG = {
             "level": "INFO",
             "propagate": True,
         },
-        "ldap_replicator": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "ldap_peer": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
         "entrypoint": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
+        "ldap_replicator": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        }
     },
-    # "root": {
-    #     "level": "INFO",
-    #     "handlers": ["console"],
-    # },
 }
