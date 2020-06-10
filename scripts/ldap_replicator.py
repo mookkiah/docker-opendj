@@ -212,6 +212,7 @@ def get_repl_interval():
 def get_ldap_peers(alive_only=True):
     out, err, code = exec_cmd("serf members")
     if code != 0:
+        err = err or out
         logger.warning(f"Unable to get peers; reason={err.decode()}")
         return []
 

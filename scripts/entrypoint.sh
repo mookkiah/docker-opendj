@@ -16,10 +16,7 @@ if [ ! -f /deploy/touched ]; then
     touch /deploy/touched
 fi
 
-serf agent \
-    -discover gluu-ldap \
-    -log-level warn \
-    -tag role=ldap &
+serf agent -config-file /etc/gluu/conf/serf.json &
 
 python3 /app/scripts/ldap_replicator.py &
 

@@ -134,7 +134,7 @@ LABEL name="Wren:DS" \
     summary="Gluu Wren:DS" \
     description="Community fork of OpenDJ, an LDAP server originally developed by ForgeRock"
 
-RUN mkdir -p /etc/certs /flag /deploy /app/tmp
+RUN mkdir -p /etc/certs /flag /deploy /app/tmp /etc/gluu/conf
 COPY schemas/*.ldif /opt/opendj/template/config/schema/
 COPY templates /app/templates
 COPY scripts /app/scripts

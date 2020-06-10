@@ -2,6 +2,7 @@ import json
 import logging
 import logging.config
 import os
+import pathlib
 import shlex
 import shutil
 import socket
@@ -301,6 +302,9 @@ def main():
         except OSError:
             pass
 
+    # prepare serf config
+    configure_serf()
+
 
 def render_san_cnf(name):
     ctx = {"alt_name": name}
@@ -436,6 +440,30 @@ def cleanup_config_dir():
 
 def is_wrends():
     return os.path.isfile("/opt/opendj/lib/wrends.jar")
+
+
+def configure_serf():
+    def get_keygen():
+        keygen = manager.secret.get("serf_gluu_ldap_key")
+        if not keygen:
+            out, _, _ = exec_cmd("serf keygen")
+            keygen = out.decode().strip()
+            manager.secret.set("serf_gluu_ldap_key", keygen)
+        return keygen
+
+    conf_fn = pathlib.Path("/etc/gluu/conf/serf.json")
+
+    # skip if config exists
+    if conf_fn.is_file():
+        return
+
+    conf = {
+        "tags": {"role": "ldap"},
+        "discover": "gluu-ldap",
+        "log_level": "warn",
+        "encrypt_key": get_keygen(),
+    }
+    conf_fn.write_text(json.dumps(conf))
 
 
 if __name__ == "__main__":
