@@ -4,15 +4,25 @@ import sys
 import ldap3
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
+from pygluu.containerlib.utils import exec_cmd
 
 
-def wait_for_ldap(manager, **kwargs):
-    host = "localhost:1636"
-    user = manager.config.get("ldap_binddn")
-    password = decode_text(
-        manager.secret.get("encoded_ox_ldap_pw"), manager.secret.get("encoded_salt")
-    )
+def get_ldap_peers(alive_only=True):
+    peers = []
 
+    out, _, code = exec_cmd("serf members")
+    if code != 0:
+        return peers
+
+    for line in out.decode().splitlines():
+        peer = line.split()
+        if alive_only and peer[2] != "alive":
+            continue
+        peers.append(peer[0])
+    return peers
+
+
+def get_ldap_entries(host, user, password):
     persistence_type = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
     ldap_mapping = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
     ldap_server = ldap3.Server(host, 1636, use_ssl=True)
@@ -45,15 +55,36 @@ def wait_for_ldap(manager, **kwargs):
             attributes=["objectClass"],
             size_limit=1,
         )
-        return bool(conn.entries)
+        return conn.entries
+
+
+def main():
+    # check how many member in ldap cluster,
+    peers_num = len(get_ldap_peers())
+
+    if peers_num == 0:
+        sys.exit(1)
+    elif peers_num == 1:
+        # if there's only 1 alive member, mark the server as ready to allow
+        # data injection to persistence
+        sys.exit(0)
+    else:
+        # if there are more than 1 instances, determine the server readiness by
+        # checking entries in persistence
+        manager = get_manager()
+        host = "localhost:1636"
+        user = manager.config.get("ldap_binddn")
+        password = decode_text(
+            manager.secret.get("encoded_ox_ldap_pw"),
+            manager.secret.get("encoded_salt")
+        )
+
+        result = get_ldap_entries(host, user, password)
+        if result:
+            sys.exit(0)
+        else:
+            sys.exit(1)
 
 
 if __name__ == "__main__":
-    manager = get_manager()
-    result = wait_for_ldap(manager)
-    if result:
-        print("LDAP is ready")
-        sys.exit(0)
-    else:
-        print("LDAP is not ready")
-        sys.exit(1)
+    main()
