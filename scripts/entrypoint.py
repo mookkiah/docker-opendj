@@ -140,30 +140,33 @@ def index_opendj(backend, data):
     for attr_map in data:
         attr_name = attr_map['attribute']
 
-        for index_type in attr_map["index"]:
-            for backend_name in attr_map["backend"]:
-                if backend_name != backend:
-                    continue
+        for backend_name in attr_map["backend"]:
+            if backend_name != backend:
+                continue
 
-                index_cmd = " ".join([
-                    "/opt/opendj/bin/dsconfig",
-                    "create-backend-index",
-                    "--backend-name {}".format(backend),
-                    "--type generic",
-                    "--index-name {}".format(attr_name),
-                    "--set index-type:{}".format(index_type),
-                    "--set index-entry-limit:4000",
-                    "--hostName {}".format(guess_host_addr()),
-                    "--port 4444",
-                    "--bindDN '{}'".format(manager.config.get("ldap_binddn")),
-                    "-j {}".format(DEFAULT_ADMIN_PW_PATH),
-                    "--trustAll",
-                    "--noPropertiesFile",
-                    "--no-prompt",
-                ])
-                _, err, code = exec_cmd(index_cmd)
-                if code:
-                    logger.warning(err.decode())
+            idx_type_opts = " ".join([
+                "--set index-type:{}".format(attr) for attr in attr_map["index"]
+            ])
+
+            index_cmd = " ".join([
+                "/opt/opendj/bin/dsconfig",
+                "create-backend-index",
+                "--backend-name {}".format(backend),
+                "--type generic",
+                "--index-name {}".format(attr_name),
+                idx_type_opts,
+                "--set index-entry-limit:4000",
+                "--hostName {}".format(guess_host_addr()),
+                "--port 4444",
+                "--bindDN '{}'".format(manager.config.get("ldap_binddn")),
+                "-j {}".format(DEFAULT_ADMIN_PW_PATH),
+                "--trustAll",
+                "--noPropertiesFile",
+                "--no-prompt",
+            ])
+            _, err, code = exec_cmd(index_cmd)
+            if code:
+                logger.warning(err.decode())
 
 
 def sync_ldap_pkcs12():
