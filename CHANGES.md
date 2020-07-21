@@ -2,6 +2,16 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 4.2.0_01
+
+Released on July 18th, 2020.
+
+* Added support for Gluu Server v4.2.
+* Upraded to Java 11.
+* Upgraded to Python3.
+* Added `serf` (gossip-protocol) to detect OpenDJ peers for auto-replication.
+* Removed `GLUU_LDAP_ADVERTISE_ADDR` and `GLUU_LDAP_ADDR_INTERFACE` environment variables. The advertised address will be detected by hostname or service name.
+
 ## Version 4.1.1_03
 
 Released on June 5th, 2020.

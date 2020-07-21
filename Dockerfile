@@ -1,19 +1,24 @@
-FROM openjdk:8-jre-alpine3.9
+FROM adoptopenjdk/openjdk11:alpine-jre
+
+# symlink JVM
+RUN mkdir -p /usr/lib/jvm/default-jvm /usr/java/latest \
+    && ln -sf /opt/java/openjdk /usr/lib/jvm/default-jvm/jre \
+    && ln -sf /usr/lib/jvm/default-jvm/jre /usr/java/latest/jre
 
 # ===============
 # Alpine packages
 # ===============
 
 RUN apk update \
-    && apk add --no-cache openssl py-pip \
+    && apk add --no-cache openssl py3-pip tini curl \
     && apk add --no-cache --virtual build-deps wget git
 
 # ======
 # WrenDS
 # ======
 
-ENV WRENDS_VERSION=4.0.0-M3 \
-    WRENDS_BUILD_DATE=2019-07-29
+ARG WRENDS_VERSION=4.0.0-M3
+ARG WRENDS_BUILD_DATE=2019-07-29
 
 RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${WRENDS_VERSION}/opendj-server-legacy-${WRENDS_VERSION}.zip -P /tmp \
    && mkdir -p /opt \
@@ -21,19 +26,24 @@ RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/
    && rm -f /tmp/opendj-server-legacy-${WRENDS_VERSION}.zip
 
 # ====
-# Tini
+# Serf
 # ====
 
-RUN wget -q https://github.com/krallin/tini/releases/download/v0.18.0/tini-static -O /usr/bin/tini \
-    && chmod +x /usr/bin/tini
+ARG SERF_VERSION=0.8.2
+RUN wget -q https://releases.hashicorp.com/serf/${SERF_VERSION}/serf_${SERF_VERSION}_linux_amd64.zip -O /tmp/serf.zip \
+    && unzip -qq /tmp/serf.zip -d /tmp \
+    && cp /tmp/serf /usr/bin/serf \
+    && chmod +x /usr/bin/serf \
+    && rm -f /tmp/serf*
 
 # ======
 # Python
 # ======
 
+RUN apk add --no-cache py3-cryptography
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install -U pip \
-    && pip install -r /tmp/requirements.txt --no-cache-dir
+RUN pip3 install -U pip \
+    && pip3 install -r /tmp/requirements.txt --no-cache-dir
 
 # =======
 # License
@@ -104,9 +114,7 @@ ENV GLUU_PERSISTENCE_TYPE=ldap \
 # Generic ENV
 # ===========
 
-ENV GLUU_LDAP_ADVERTISE_ADDR="" \
-    GLUU_LDAP_ADDR_INTERFACE="" \
-    GLUU_LDAP_AUTO_REPLICATE=true \
+ENV GLUU_LDAP_AUTO_REPLICATE=true \
     GLUU_ADMIN_PORT=4444 \
     GLUU_REPLICATION_PORT=8989 \
     GLUU_JMX_PORT=1689 \
@@ -121,33 +129,18 @@ ENV GLUU_LDAP_ADVERTISE_ADDR="" \
 LABEL name="Wren:DS" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
-    version="4.1.1" \
-    release="03" \
+    version="4.2.0" \
+    release="01" \
     summary="Gluu Wren:DS" \
     description="Community fork of OpenDJ, an LDAP server originally developed by ForgeRock"
 
-RUN mkdir -p /etc/certs /flag /deploy /app/tmp
+RUN mkdir -p /etc/certs /flag /deploy /app/tmp /etc/gluu/conf
 COPY schemas/*.ldif /opt/opendj/template/config/schema/
 COPY templates /app/templates
 COPY scripts /app/scripts
 RUN chmod +x /app/scripts/entrypoint.sh
+# \
+#     && chmod +x /app/scripts/serf_proxy.py
 
-# # create ldap user
-# RUN useradd -ms /bin/sh --uid 1000 ldap \
-#     && usermod -a -G root ldap
-
-# # adjust ownership
-# RUN chown -R 1000:1000 /opt/opendj \
-#     && chown -R 1000:1000 /flag \
-#     && chown -R 1000:1000 /deploy \
-#     && chgrp -R 0 /opt/opendj && chmod -R g=u /opt/opendj \
-#     && chgrp -R 0 /flag && chmod -R g=u /flag \
-#     && chgrp -R 0 /deploy && chmod -R g=u /deploy \
-#     && chgrp -R 0 /etc/certs && chmod -R g=u /etc/certs \
-#     && chgrp -R 0 /etc/ssl && chmod -R g=u /etc/ssl
-
-# # run as non-root user
-# USER 1000
-
-ENTRYPOINT ["tini", "-g", "--"]
+ENTRYPOINT ["tini", "-e", "143" ,"-g", "--"]
 CMD ["sh", "/app/scripts/entrypoint.sh"]

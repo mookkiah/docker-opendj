@@ -4,8 +4,8 @@ Docker image packaging for OpenDJ/Wren:DS.
 
 ## Versions
 
-- Stable: `gluufederation/wrends:4.1.1_03`
-- Unstable: `gluufederation/wrends:4.1.1_dev`
+- Stable: `gluufederation/wrends:4.2.0_01`
+- Unstable: `gluufederation/wrends:4.2.0_dev`
 
 Refer to [Changelog](./CHANGES.md) for details on new features, bug fixes, or older releases.
 
@@ -44,14 +44,12 @@ The following environment variables are supported by the container:
 - `GLUU_SECRET_KUBERNETES_USE_KUBE_CONFIG`: Load credentials from `$HOME/.kube/config`, only useful for non-container environment (default to `false`).
 - `GLUU_WAIT_MAX_TIME`: How long the startup "health checks" should run (default to `300` seconds).
 - `GLUU_WAIT_SLEEP_DURATION`: Delay between startup "health checks" (default to `10` seconds).
-- `GLUU_LDAP_ADDR_INTERFACE`: interface name where the IP will be guessed and registered as OpenDJ host, e.g. eth0 (will be ignored if `GLUU_LDAP_ADVERTISE_ADDR` is used).
-- `GLUU_LDAP_ADVERTISE_ADDR`: the hostname/IP address used as the host of OpenDJ server.
 - `GLUU_LDAP_AUTO_REPLICATE`: enable replication automatically (default to `true`).
 - `GLUU_CERT_ALT_NAME`: an additional DNS name set as Subject Alt Name in cert. If the value is not an empty string and doesn't match existing Subject Alt Name (or doesn't exist) in existing cert, then new cert will be regenerated and overwrite the one that saved in config backend. This environment variable is __required only if__ oxShibboleth is deployed, to address issue with mismatched `CN` and destination hostname while trying to connect to OpenDJ. Note, any existing containers that connect to OpenDJ must be re-deployed to download new cert.
 
 ## Initializing LDAP Data
 
-Starting from v4, the container will not import the initial data into LDAP. Use [Persistence](../persistence/#initializing-data) container to do so.
+Starting from v4, the container will not import the initial data into LDAP. Use `gluufederation/persistence` container to do so.
 
 ## LDAP Replication
 

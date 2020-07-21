@@ -2,21 +2,19 @@ import json
 import logging
 import logging.config
 import os
+import pathlib
 import shlex
 import shutil
+import socket
 import subprocess
 from contextlib import contextmanager
 
-from ldap_peer import guess_host_addr
 from settings import LOGGING_CONFIG
 
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
 
-GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
-GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
-GLUU_JMX_PORT = os.environ.get("GLUU_JMX_PORT", 1689)
 GLUU_CERT_ALT_NAME = os.environ.get("GLUU_CERT_ALT_NAME", "")
 GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
 GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
@@ -28,6 +26,10 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("entrypoint")
 
 
+def guess_host_addr():
+    return socket.getfqdn()
+
+
 def install_opendj():
     logger.info("Installing OpenDJ.")
 
@@ -36,8 +38,8 @@ def install_opendj():
         "ldap_hostname": guess_host_addr(),
         "ldap_port": manager.config.get("ldap_port"),
         "ldaps_port": manager.config.get("ldaps_port"),
-        "ldap_jmx_port": GLUU_JMX_PORT,
-        "ldap_admin_port": GLUU_ADMIN_PORT,
+        "ldap_jmx_port": 1689,
+        "ldap_admin_port": 4444,
         "opendj_ldap_binddn": manager.config.get("ldap_binddn"),
         "ldapPassFn": DEFAULT_ADMIN_PW_PATH,
         "ldap_backend_type": "je",
@@ -45,7 +47,7 @@ def install_opendj():
     with open("/app/templates/opendj-setup.properties") as fr:
         content = fr.read() % ctx
 
-        with open("/opt/opendj/opendj-setup.properties", "wb") as fw:
+        with open("/opt/opendj/opendj-setup.properties", "w") as fw:
             fw.write(content)
 
     # 2) run installer
@@ -57,13 +59,13 @@ def install_opendj():
         "--propertiesFilePath /opt/opendj/opendj-setup.properties",
         "--usePkcs12keyStore /etc/certs/opendj.pkcs12",
         "--keyStorePassword {}".format(
-            decode_text(manager.secret.get("encoded_ldapTrustStorePass"), manager.secret.get("encoded_salt"))
+            decode_text(manager.secret.get("encoded_ldapTrustStorePass"), manager.secret.get("encoded_salt")).decode()
         ),
         "--doNotStart",
     ])
     out, err, code = exec_cmd(cmd)
     if code and err:
-        logger.warn(err)
+        logger.warning(err.decode())
 
     if all([os.environ.get("JAVA_VERSION", "") >= "1.8.0",
             os.path.isfile("/opt/opendj/config/config.ldif")]):
@@ -75,7 +77,7 @@ def install_opendj():
 def run_dsjavaproperties():
     _, err, code = exec_cmd("/opt/opendj/bin/dsjavaproperties")
     if code and err:
-        logger.warn(err)
+        logger.warning(err.decode())
 
 
 def configure_opendj():
@@ -122,14 +124,14 @@ def configure_opendj():
             "--trustAll",
             "--no-prompt",
             "--hostname {}".format(hostname),
-            "--port {}".format(GLUU_ADMIN_PORT),
+            "--port 4444",
             "--bindDN '{}'".format(binddn),
             "--bindPasswordFile {}".format(DEFAULT_ADMIN_PW_PATH),
             "{}".format(config)
         ])
         _, err, code = exec_cmd(cmd)
         if code:
-            logger.warn(err)
+            logger.warning(err.decode())
 
 
 def index_opendj(backend, data):
@@ -138,30 +140,33 @@ def index_opendj(backend, data):
     for attr_map in data:
         attr_name = attr_map['attribute']
 
-        for index_type in attr_map["index"]:
-            for backend_name in attr_map["backend"]:
-                if backend_name != backend:
-                    continue
+        for backend_name in attr_map["backend"]:
+            if backend_name != backend:
+                continue
 
-                index_cmd = " ".join([
-                    "/opt/opendj/bin/dsconfig",
-                    "create-backend-index",
-                    "--backend-name {}".format(backend),
-                    "--type generic",
-                    "--index-name {}".format(attr_name),
-                    "--set index-type:{}".format(index_type),
-                    "--set index-entry-limit:4000",
-                    "--hostName {}".format(guess_host_addr()),
-                    "--port {}".format(GLUU_ADMIN_PORT),
-                    "--bindDN '{}'".format(manager.config.get("ldap_binddn")),
-                    "-j {}".format(DEFAULT_ADMIN_PW_PATH),
-                    "--trustAll",
-                    "--noPropertiesFile",
-                    "--no-prompt",
-                ])
-                _, err, code = exec_cmd(index_cmd)
-                if code:
-                    logger.warn(err)
+            idx_type_opts = " ".join([
+                "--set index-type:{}".format(attr) for attr in attr_map["index"]
+            ])
+
+            index_cmd = " ".join([
+                "/opt/opendj/bin/dsconfig",
+                "create-backend-index",
+                "--backend-name {}".format(backend),
+                "--type generic",
+                "--index-name {}".format(attr_name),
+                idx_type_opts,
+                "--set index-entry-limit:4000",
+                "--hostName {}".format(guess_host_addr()),
+                "--port 4444",
+                "--bindDN '{}'".format(manager.config.get("ldap_binddn")),
+                "-j {}".format(DEFAULT_ADMIN_PW_PATH),
+                "--trustAll",
+                "--noPropertiesFile",
+                "--no-prompt",
+            ])
+            _, err, code = exec_cmd(index_cmd)
+            if code:
+                logger.warning(err.decode())
 
 
 def sync_ldap_pkcs12():
@@ -186,8 +191,8 @@ def ds_context():
         manager.config.get("ldap_binddn"),
         DEFAULT_ADMIN_PW_PATH,
     )
-    out, err, code = exec_cmd(cmd)
-    running = out.startswith("Unable to connect to the server")
+    out, _, code = exec_cmd(cmd)
+    running = out.decode().startswith("Unable to connect to the server")
 
     if not running:
         exec_cmd("/opt/opendj/bin/start-ds")
@@ -219,7 +224,7 @@ def run_upgrade():
                 # backup old buildinfo
                 exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{}".format(old_buildinfo))
                 _, err, retcode = exec_cmd("/opt/opendj/upgrade --acceptLicense")
-                assert retcode == 0, "Failed to upgrade OpenDJ; reason={}".format(err)
+                assert retcode == 0, "Failed to upgrade OpenDJ; reason={}".format(err.decode())
 
                 # backup current buildinfo
                 exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{}".format(buildinfo))
@@ -300,6 +305,9 @@ def main():
         except OSError:
             pass
 
+    # prepare serf config
+    configure_serf()
+
 
 def render_san_cnf(name):
     ctx = {"alt_name": name}
@@ -314,7 +322,7 @@ def render_san_cnf(name):
 def regenerate_ldap_certs():
     suffix = "opendj"
     passwd = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                         manager.secret.get("encoded_salt"))
+                         manager.secret.get("encoded_salt")).decode()
     country_code = manager.config.get("country_code")
     state = manager.config.get("state")
     city = manager.config.get("city")
@@ -326,13 +334,13 @@ def regenerate_ldap_certs():
     _, err, retcode = exec_cmd(
         "openssl genrsa -des3 -out /etc/certs/{}.key.orig "
         "-passout pass:'{}' 2048".format(suffix, passwd))
-    assert retcode == 0, "Failed to generate SSL key with password; reason={}".format(err)
+    assert retcode == 0, "Failed to generate SSL key with password; reason={}".format(err.decode())
 
     # create .key
     _, err, retcode = exec_cmd(
         "openssl rsa -in /etc/certs/{0}.key.orig "
         "-passin pass:'{1}' -out /etc/certs/{0}.key".format(suffix, passwd))
-    assert retcode == 0, "Failed to generate SSL key; reason={}".format(err)
+    assert retcode == 0, "Failed to generate SSL key; reason={}".format(err.decode())
 
     # create .csr
     _, err, retcode = exec_cmd(
@@ -340,14 +348,14 @@ def regenerate_ldap_certs():
         "-out /etc/certs/{0}.csr "
         "-config /etc/ssl/san.cnf "
         "-subj /C='{1}'/ST='{2}'/L='{3}'/O='{4}'/CN='{5}'/emailAddress='{6}'".format(suffix, country_code, state, city, org_name, domain, email))
-    assert retcode == 0, "Failed to generate SSL CSR; reason={}".format(err)
+    assert retcode == 0, "Failed to generate SSL CSR; reason={}".format(err.decode())
 
     # create .crt
     _, err, retcode = exec_cmd(
         "openssl x509 -req -days 365 -in /etc/certs/{0}.csr "
         "-extensions v3_req -extfile /etc/ssl/san.cnf "
         "-signkey /etc/certs/{0}.key -out /etc/certs/{0}.crt".format(suffix))
-    assert retcode == 0, "Failed to generate SSL cert; reason={}".format(err)
+    assert retcode == 0, "Failed to generate SSL cert; reason={}".format(err.decode())
 
     with open("/etc/certs/{}.pem".format(suffix), "w") as fw:
         with open("/etc/certs/{}.crt".format(suffix)) as fr:
@@ -377,10 +385,10 @@ def regenerate_ldap_pkcs12():
         "-passout pass:{}".format(passwd),
     ])
     _, err, retcode = exec_cmd(cmd)
-    assert retcode == 0, "Failed to generate PKCS12 file; reason={}".format(err)
+    assert retcode == 0, "Failed to generate PKCS12 file; reason={}".format(err.decode())
 
 
-def get_certificate_san(certpath):
+def get_certificate_san(certpath) -> str:
     openssl_proc = subprocess.Popen(
         shlex.split("openssl x509 -text -noout -in {}".format(certpath)),
         stdout=subprocess.PIPE,
@@ -391,7 +399,7 @@ def get_certificate_san(certpath):
         stdin=openssl_proc.stdout,
     )
     san = grep_proc.communicate()[0]
-    return san.strip()
+    return san.strip().decode()
 
 
 def cleanup_config_dir():
@@ -407,14 +415,14 @@ def cleanup_config_dir():
 
     for obj in subtree:
         path = "/opt/opendj/config/{0}".format(obj)
-        logger.warn(
+        logger.warning(
             "Found {0} in '/opt/opendj/config/' volume mount. "
             "/opt/opendj/config should be empty for a successful "
             "installation.".format(path)
         )
 
         if obj != "lost+found":
-            logger.warn(
+            logger.warning(
                 "{0} will not be removed. Please manually remove any "
                 "data from the volume mount for /opt/opendj/config/.".format(path)
             )
@@ -430,11 +438,35 @@ def cleanup_config_dir():
         except Exception as exc:
             # Unforeseen information in the config/ dir will be logged and
             # prompt the administrator to deal with their issue.
-            logger.warn(exc)
+            logger.warning(exc)
 
 
 def is_wrends():
     return os.path.isfile("/opt/opendj/lib/wrends.jar")
+
+
+def configure_serf():
+    def get_keygen():
+        keygen = manager.secret.get("serf_gluu_ldap_key")
+        if not keygen:
+            out, _, _ = exec_cmd("serf keygen")
+            keygen = out.decode().strip()
+            manager.secret.set("serf_gluu_ldap_key", keygen)
+        return keygen
+
+    conf_fn = pathlib.Path("/etc/gluu/conf/serf.json")
+
+    # skip if config exists
+    if conf_fn.is_file():
+        return
+
+    conf = {
+        "tags": {"role": "ldap"},
+        "discover": "gluu-ldap",
+        "log_level": "warn",
+        "encrypt_key": get_keygen(),
+    }
+    conf_fn.write_text(json.dumps(conf))
 
 
 if __name__ == "__main__":
