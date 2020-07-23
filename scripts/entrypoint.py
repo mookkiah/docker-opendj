@@ -11,6 +11,7 @@ from contextlib import contextmanager
 
 from settings import LOGGING_CONFIG
 
+import ldap3
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
@@ -132,41 +133,6 @@ def configure_opendj():
         _, err, code = exec_cmd(cmd)
         if code:
             logger.warning(err.decode())
-
-
-def index_opendj(backend, data):
-    logger.info("Creating indexes for {} backend.".format(backend))
-
-    for attr_map in data:
-        attr_name = attr_map['attribute']
-
-        for backend_name in attr_map["backend"]:
-            if backend_name != backend:
-                continue
-
-            idx_type_opts = " ".join([
-                "--set index-type:{}".format(attr) for attr in attr_map["index"]
-            ])
-
-            index_cmd = " ".join([
-                "/opt/opendj/bin/dsconfig",
-                "create-backend-index",
-                "--backend-name {}".format(backend),
-                "--type generic",
-                "--index-name {}".format(attr_name),
-                idx_type_opts,
-                "--set index-entry-limit:4000",
-                "--hostName {}".format(guess_host_addr()),
-                "--port 4444",
-                "--bindDN '{}'".format(manager.config.get("ldap_binddn")),
-                "-j {}".format(DEFAULT_ADMIN_PW_PATH),
-                "--trustAll",
-                "--noPropertiesFile",
-                "--no-prompt",
-            ])
-            _, err, code = exec_cmd(index_cmd)
-            if code:
-                logger.warning(err.decode())
 
 
 def sync_ldap_pkcs12():
@@ -291,12 +257,7 @@ def main():
             if not is_wrends():
                 run_dsjavaproperties()
             configure_opendj()
-
-            with open("/app/templates/index.json") as fr:
-                data = json.load(fr)
-                index_opendj("userRoot", data)
-                if require_site():
-                    index_opendj("site", data)
+            configure_opendj_indexes()
 
     # post-installation cleanup
     for f in [DEFAULT_ADMIN_PW_PATH, "/opt/opendj/opendj-setup.properties"]:
@@ -467,6 +428,44 @@ def configure_serf():
         "encrypt_key": get_keygen(),
     }
     conf_fn.write_text(json.dumps(conf))
+
+
+def configure_opendj_indexes():
+    logger.info(f"Configuring indexes for available backends.")
+
+    with open("/app/templates/index.json") as f:
+        data = json.load(f)
+
+    host = "localhost:1636"
+    user = manager.config.get("ldap_binddn")
+    password = decode_text(
+        manager.secret.get("encoded_ox_ldap_pw"),
+        manager.secret.get("encoded_salt")
+    )
+
+    ldap_server = ldap3.Server(host, 1636, use_ssl=True)
+
+    backends = ["userRoot"]
+    if require_site():
+        backends.append("site")
+
+    with ldap3.Connection(ldap_server, user, password) as conn:
+        for attr_map in data:
+            for backend in attr_map["backend"]:
+                if backend not in backends:
+                    continue
+
+                dn = f"ds-cfg-attribute={attr_map['attribute']},cn=Index,ds-cfg-backend-id={backend},cn=Backends,cn=config"
+                attrs = {
+                    'objectClass': ['top', 'ds-cfg-backend-index'],
+                    'ds-cfg-attribute': [attr_map['attribute']],
+                    'ds-cfg-index-type': attr_map['index'],
+                    'ds-cfg-index-entry-limit': ['4000']
+                }
+
+                conn.add(dn, attributes=attrs)
+                if conn.result["description"] != "success":
+                    logger.warning(conn.result["message"])
 
 
 if __name__ == "__main__":
