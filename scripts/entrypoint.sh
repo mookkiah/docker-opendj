@@ -1,6 +1,18 @@
 #!/bin/sh
 set -e
 
+# =========
+# FUNCTIONS
+# =========
+
+set_java_args() {
+    # not sure if we can omit `-server` safely
+    local java_args="-server"
+    java_args="${java_args} -XX:+UseContainerSupport -XX:MaxRAMPercentage=${GLUU_MAX_RAM_PERCENTAGE} ${GLUU_JAVA_OPTIONS}"
+    # set the env var so it is loaded by `start-ds` script
+    export OPENDJ_JAVA_ARGS=${java_args}
+}
+
 # ==========
 # ENTRYPOINT
 # ==========
@@ -21,4 +33,5 @@ serf agent -config-file /etc/gluu/conf/serf.json &
 python3 /app/scripts/ldap_replicator.py &
 
 # run OpenDJ server
+set_java_args
 exec /opt/opendj/bin/start-ds -N
