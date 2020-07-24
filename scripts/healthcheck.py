@@ -4,22 +4,8 @@ import sys
 import ldap3
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
-from pygluu.containerlib.utils import exec_cmd
 
-
-def get_ldap_peers(alive_only=True):
-    peers = []
-
-    out, _, code = exec_cmd("serf members")
-    if code != 0:
-        return peers
-
-    for line in out.decode().splitlines():
-        peer = line.split()
-        if alive_only and peer[2] != "alive":
-            continue
-        peers.append(peer[0])
-    return peers
+from .ldap_replicator import get_ldap_peers
 
 
 def get_ldap_entries(host, user, password):

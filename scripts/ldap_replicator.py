@@ -209,8 +209,8 @@ def get_repl_interval():
     return max(1, interval)
 
 
-def get_ldap_peers(alive_only=True):
-    out, err, code = exec_cmd("serf members")
+def get_ldap_peers():
+    out, err, code = exec_cmd("serf members -tag role=ldap -status=alive")
     if code != 0:
         err = err or out
         logger.warning(f"Unable to get peers; reason={err.decode()}")
@@ -219,8 +219,6 @@ def get_ldap_peers(alive_only=True):
     peers = []
     for line in out.decode().splitlines():
         peer = line.split()
-        if alive_only and peer[2] != "alive":
-            continue
         peers.append(peer[0])
     return peers
 

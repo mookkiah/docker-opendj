@@ -370,6 +370,7 @@ def configure_serf():
         return
 
     conf = {
+        "node_name": guess_host_addr(),
         "tags": {"role": "ldap"},
         "discover": "gluu-ldap",
         "log_level": "warn",
