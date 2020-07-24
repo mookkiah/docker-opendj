@@ -81,60 +81,6 @@ def run_dsjavaproperties():
         logger.warning(err.decode())
 
 
-def configure_opendj():
-    logger.info("Configuring OpenDJ.")
-
-    opendj_prop_name = 'global-aci:\'(targetattr!="userPassword||authPassword||debugsearchindex||changes||changeNumber||changeType||changeTime||targetDN||newRDN||newSuperior||deleteOldRDN")(version 3.0; acl "Anonymous read access"; allow (read,search,compare) userdn="ldap:///anyone";)\''
-    config_mods = [
-        'set-backend-prop --backend-name userRoot --set db-cache-percent:70',
-        'set-global-configuration-prop --set single-structural-objectclass-behavior:accept',
-        'set-password-policy-prop --policy-name "Default Password Policy" --set allow-pre-encoded-passwords:true',
-        'set-log-publisher-prop --publisher-name "File-Based Audit Logger" --set enabled:true',
-        'create-backend --backend-name metric --set base-dn:o=metric --type je --set enabled:true --set db-cache-percent:10',
-
-        'set-connection-handler-prop --handler-name "LDAP Connection Handler" --set enabled:false',
-        'set-connection-handler-prop --handler-name "JMX Connection Handler" --set enabled:false',
-        'set-access-control-handler-prop --remove {}'.format(opendj_prop_name),
-        'set-global-configuration-prop --set reject-unauthenticated-requests:true',
-        'set-password-policy-prop --policy-name "Default Password Policy" --set default-password-storage-scheme:"Salted SHA-512"',
-        'set-global-configuration-prop --set reject-unauthenticated-requests:true',
-        'create-plugin --plugin-name "Unique mail address" --type unique-attribute --set enabled:true --set base-dn:o=gluu --set type:mail',
-        'create-plugin --plugin-name "Unique uid entry" --type unique-attribute --set enabled:true --set base-dn:o=gluu --set type:uid',
-
-        # 'set-connection-handler-prop --handler-name "LDAPS Connection Handler" --set enabled:true --set listen-address:0.0.0.0',
-        # 'set-administration-connector-prop --set listen-address:0.0.0.0',
-        # 'set-crypto-manager-prop --set ssl-encryption:true',
-    ]
-
-    if not is_wrends():
-        config_mods.append(
-            'set-attribute-syntax-prop --syntax-name "Directory String" --set allow-zero-length-values:true',
-        )
-
-    if require_site():
-        config_mods.append(
-            'create-backend --backend-name site --set base-dn:o=site --type je --set enabled:true --set db-cache-percent:20',
-        )
-
-    hostname = guess_host_addr()
-    binddn = manager.config.get("ldap_binddn")
-
-    for config in config_mods:
-        cmd = " ".join([
-            "/opt/opendj/bin/dsconfig",
-            "--trustAll",
-            "--no-prompt",
-            "--hostname {}".format(hostname),
-            "--port 4444",
-            "--bindDN '{}'".format(binddn),
-            "--bindPasswordFile {}".format(DEFAULT_ADMIN_PW_PATH),
-            "{}".format(config)
-        ])
-        _, err, code = exec_cmd(cmd)
-        if code:
-            logger.warning(err.decode())
-
-
 def sync_ldap_pkcs12():
     dest = manager.config.get("ldapTrustStoreFn")
     manager.secret.to_file("ldap_pkcs12_base64", dest, decode=True, binary_mode=True)
@@ -256,6 +202,8 @@ def main():
         with ds_context():
             if not is_wrends():
                 run_dsjavaproperties()
+
+            create_backends()
             configure_opendj()
             configure_opendj_indexes()
 
@@ -466,6 +414,103 @@ def configure_opendj_indexes():
                 conn.add(dn, attributes=attrs)
                 if conn.result["description"] != "success":
                     logger.warning(conn.result["message"])
+
+
+def create_backends():
+    logger.info("Creating backends.")
+    mods = [
+        "create-backend --backend-name metric --set base-dn:o=metric --type je --set enabled:true --set db-cache-percent:10",
+    ]
+    if require_site():
+        mods.append(
+            "create-backend --backend-name site --set base-dn:o=site --type je --set enabled:true --set db-cache-percent:20",
+        )
+    hostname = guess_host_addr()
+    binddn = manager.config.get("ldap_binddn")
+
+    for mod in mods:
+        cmd = " ".join([
+            "/opt/opendj/bin/dsconfig",
+            "--trustAll",
+            "--no-prompt",
+            f"--hostname {hostname}",
+            "--port 4444",
+            f"--bindDN '{binddn}'",
+            f"--bindPasswordFile {DEFAULT_ADMIN_PW_PATH}",
+            mod,
+        ])
+        _, err, code = exec_cmd(cmd)
+        if code:
+            logger.warning(err.decode())
+
+
+def configure_opendj():
+    logger.info("Configuring OpenDJ.")
+
+    host = "localhost:1636"
+    user = manager.config.get("ldap_binddn")
+    password = decode_text(
+        manager.secret.get("encoded_ox_ldap_pw"),
+        manager.secret.get("encoded_salt")
+    )
+
+    ldap_server = ldap3.Server(host, 1636, use_ssl=True)
+
+    mods = [
+        ('ds-cfg-backend-id=userRoot,cn=Backends,cn=config', 'ds-cfg-db-cache-percent', '70', ldap3.MODIFY_REPLACE),
+        ('cn=config', 'ds-cfg-single-structural-objectclass-behavior', 'accept', ldap3.MODIFY_REPLACE),
+        ('cn=config', 'ds-cfg-reject-unauthenticated-requests', 'true', ldap3.MODIFY_REPLACE),
+        ('cn=Default Password Policy,cn=Password Policies,cn=config', 'ds-cfg-allow-pre-encoded-passwords', 'true', ldap3.MODIFY_REPLACE),
+        ('cn=Default Password Policy,cn=Password Policies,cn=config', 'ds-cfg-default-password-storage-scheme', 'cn=Salted SHA-512,cn=Password Storage Schemes,cn=config', ldap3.MODIFY_REPLACE),
+        ('cn=File-Based Audit Logger,cn=Loggers,cn=config', 'ds-cfg-enabled', 'true', ldap3.MODIFY_REPLACE),
+        ('cn=LDAP Connection Handler,cn=Connection Handlers,cn=config', 'ds-cfg-enabled', 'false', ldap3.MODIFY_REPLACE),
+        ('cn=JMX Connection Handler,cn=Connection Handlers,cn=config', 'ds-cfg-enabled', 'false', ldap3.MODIFY_REPLACE),
+        ('cn=Access Control Handler,cn=config', 'ds-cfg-global-aci', '(targetattr!="userPassword||authPassword||debugsearchindex||changes||changeNumber||changeType||changeTime||targetDN||newRDN||newSuperior||deleteOldRDN")(version 3.0; acl "Anonymous read access"; allow (read,search,compare) userdn="ldap:///anyone";)', ldap3.MODIFY_DELETE),
+    ]
+
+    # if not is_wrends():
+    #     config_mods.append(
+    #         'set-attribute-syntax-prop --syntax-name "Directory String" --set allow-zero-length-values:true',
+    #     )
+
+    with ldap3.Connection(ldap_server, user, password) as conn:
+        for dn, attr, value, mod_type in mods:
+            conn.modify(dn, {attr: [mod_type, value]})
+            if conn.result["description"] != "success":
+                logger.warning(conn.result["message"])
+
+    # Create uniqueness for attrbiutes
+    with ldap3.Connection(ldap_server, user, password) as conn:
+        attrs = [
+            ("mail", "Unique mail address"),
+            ("uid", "Unique uid entry"),
+        ]
+
+        for attr, cn in attrs:
+            conn.add(
+                'cn={},cn=Plugins,cn=config'.format(cn),
+                attributes={
+                    'objectClass': ['top', 'ds-cfg-plugin', 'ds-cfg-unique-attribute-plugin'],
+                    'ds-cfg-java-class': ['org.opends.server.plugins.UniqueAttributePlugin'],
+                    'ds-cfg-enabled': ['true'],
+                    'ds-cfg-plugin-type': [
+                        'postoperationadd',
+                        'postoperationmodify',
+                        'postoperationmodifydn',
+                        'postsynchronizationadd',
+                        'postsynchronizationmodify',
+                        'postsynchronizationmodifydn',
+                        'preoperationadd',
+                        'preoperationmodify',
+                        'preoperationmodifydn',
+                    ],
+                    'ds-cfg-type': [attr],
+                    'cn': [cn],
+                    'ds-cfg-base-dn': ['o=gluu']
+                }
+            )
+            if conn.result["description"] != "success":
+                logger.warning(conn.result["message"])
 
 
 if __name__ == "__main__":
