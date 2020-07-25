@@ -2,6 +2,13 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 4.2.0_02
+
+Released on July 26th, 2020.
+
+* Fixed cache percentage for `o=metric` backend.
+* Fixed inconsistent Serf node name in K8s cluster.
+
 ## Version 4.2.0_01
 
 Released on July 18th, 2020.
