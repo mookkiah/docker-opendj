@@ -89,7 +89,7 @@ def configure_opendj():
         'set-global-configuration-prop --set single-structural-objectclass-behavior:accept',
         'set-password-policy-prop --policy-name "Default Password Policy" --set allow-pre-encoded-passwords:true',
         'set-log-publisher-prop --publisher-name "File-Based Audit Logger" --set enabled:true',
-        'create-backend --backend-name metric --set base-dn:o=metric --type je --set enabled:true --set db-cache-percent:11',
+        'create-backend --backend-name metric --set base-dn:o=metric --type je --set enabled:true --set db-cache-percent:10',
 
         'set-connection-handler-prop --handler-name "LDAP Connection Handler" --set enabled:false',
         'set-connection-handler-prop --handler-name "JMX Connection Handler" --set enabled:false',
@@ -461,6 +461,7 @@ def configure_serf():
         return
 
     conf = {
+        "node_name": guess_host_addr(),
         "tags": {"role": "ldap"},
         "discover": "gluu-ldap",
         "log_level": "warn",
