@@ -5,7 +5,7 @@ import ldap3
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
 
-from .ldap_replicator import get_ldap_peers
+from ldap_replicator import get_ldap_peers
 
 
 def get_ldap_entries(host, user, password):
