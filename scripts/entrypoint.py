@@ -16,9 +16,6 @@ from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
 
-GLUU_CERT_ALT_NAME = os.environ.get("GLUU_CERT_ALT_NAME", "")
-GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
-GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
 DEFAULT_ADMIN_PW_PATH = "/opt/opendj/.pw"
 
 manager = get_manager()
@@ -143,6 +140,9 @@ def run_upgrade():
 
 
 def require_site():
+    GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
+    GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
+
     if GLUU_PERSISTENCE_TYPE == "ldap":
         return True
     if GLUU_PERSISTENCE_TYPE == "hybrid" and GLUU_PERSISTENCE_LDAP_MAPPING == "site":
@@ -151,7 +151,7 @@ def require_site():
 
 
 def main():
-    # server = guess_host_addr()
+    GLUU_CERT_ALT_NAME = os.environ.get("GLUU_CERT_ALT_NAME", "")
 
     # the plain-text admin password is not saved in KV storage,
     # but we have the encoded one
@@ -469,10 +469,10 @@ def configure_opendj():
         ('cn=Access Control Handler,cn=config', 'ds-cfg-global-aci', '(targetattr!="userPassword||authPassword||debugsearchindex||changes||changeNumber||changeType||changeTime||targetDN||newRDN||newSuperior||deleteOldRDN")(version 3.0; acl "Anonymous read access"; allow (read,search,compare) userdn="ldap:///anyone";)', ldap3.MODIFY_DELETE),
     ]
 
-    # if not is_wrends():
-    #     config_mods.append(
-    #         'set-attribute-syntax-prop --syntax-name "Directory String" --set allow-zero-length-values:true',
-    #     )
+    if not is_wrends():
+        mods.append(
+            ("cn=Syntaxes,cn=config", "ds-cfg-allow-zero-length-values", "true", ldap3.MODIFY_REPLACE)
+        )
 
     with ldap3.Connection(ldap_server, user, password) as conn:
         for dn, attr, value, mod_type in mods:

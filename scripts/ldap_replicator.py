@@ -5,15 +5,12 @@ import time
 import socket
 from collections import defaultdict
 
-from settings import LOGGING_CONFIG
-
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
 from pygluu.containerlib.utils import as_boolean
 
-GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
-GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
+from settings import LOGGING_CONFIG
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("ldap_replicator")
@@ -24,6 +21,9 @@ manager = get_manager()
 def replicate_from(peer, server, base_dn):
     """Configure replication between 2 LDAP servers.
     """
+    GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
+    GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
+
     passwd = decode_text(
         manager.secret.get("encoded_ox_ldap_pw"),
         manager.secret.get("encoded_salt"),
