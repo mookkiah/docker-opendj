@@ -18,7 +18,7 @@ RUN apk update \
 # ======
 
 ARG WRENDS_VERSION=4.0.0-M3
-ARG WRENDS_BUILD_DATE=2019-07-29
+ARG WRENDS_BUILD_DATE="2020-08-07 17:34"
 
 RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${WRENDS_VERSION}/opendj-server-legacy-${WRENDS_VERSION}.zip -P /tmp \
    && mkdir -p /opt \
