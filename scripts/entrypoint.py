@@ -7,6 +7,7 @@ import shlex
 import shutil
 import socket
 import subprocess
+import sys
 from contextlib import contextmanager
 
 from settings import LOGGING_CONFIG
@@ -443,6 +444,7 @@ def create_backends():
         _, err, code = exec_cmd(cmd)
         if code:
             logger.warning(err.decode())
+            sys.exit(1)
 
 
 def configure_opendj():
