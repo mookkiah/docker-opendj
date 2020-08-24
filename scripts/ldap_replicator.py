@@ -29,59 +29,53 @@ def replicate_from(peer, server, base_dn):
         manager.secret.get("encoded_salt"),
     ).decode()
 
-    ldaps_port = manager.config.get("ldaps_port")
+    # ldaps_port = manager.config.get("ldaps_port")
     ldap_binddn = manager.config.get("ldap_binddn")
 
     # enable replication for specific backend
-    logger.info("Enabling OpenDJ replication of {} between {}:{} and {}:{}.".format(
-        base_dn, peer, ldaps_port, server, ldaps_port,
-    ))
+    logger.info(f"Enabling OpenDJ replication of {base_dn} between {peer} and {server}.")
 
     enable_cmd = " ".join([
         "/opt/opendj/bin/dsreplication",
         "enable",
-        "--host1 {}".format(peer),
-        "--port1 {}".format(GLUU_ADMIN_PORT),
-        "--bindDN1 '{}'".format(ldap_binddn),
-        "--bindPassword1 {}".format(passwd),
-        "--replicationPort1 {}".format(GLUU_REPLICATION_PORT),
+        f"--host1 {peer}",
+        f"--port1 {GLUU_ADMIN_PORT}",
+        f"--bindDN1 '{ldap_binddn}'",
+        f"--bindPassword1 {passwd}",
+        f"--replicationPort1 {GLUU_REPLICATION_PORT}",
         "--secureReplication1",
-        "--host2 {}".format(server),
-        "--port2 {}".format(GLUU_ADMIN_PORT),
-        "--bindDN2 '{}'".format(ldap_binddn),
-        "--bindPassword2 {}".format(passwd),
+        f"--host2 {server}",
+        f"--port2 {GLUU_ADMIN_PORT}",
+        f"--bindDN2 '{ldap_binddn}'",
+        f"--bindPassword2 {passwd}",
         "--secureReplication2",
         "--adminUID admin",
-        "--adminPassword {}".format(passwd),
-        "--baseDN '{}'".format(base_dn),
+        f"--adminPassword {passwd}",
+        f"--baseDN '{base_dn}'",
         "-X",
         "-n",
         "-Q",
-        "--trustAll",
     ])
     _, err, code = exec_cmd(enable_cmd)
     if code:
         logger.warning(err.decode().strip())
 
     # initialize replication for specific backend
-    logger.info("Initializing OpenDJ replication of {} between {}:{} and {}:{}.".format(
-        base_dn, peer, ldaps_port, server, ldaps_port,
-    ))
+    logger.info(f"Initializing OpenDJ replication of {base_dn} between {peer} and {server}.")
 
     init_cmd = " ".join([
         "/opt/opendj/bin/dsreplication",
         "initialize",
-        "--baseDN '{}'".format(base_dn),
+        f"--baseDN '{base_dn}'",
         "--adminUID admin",
-        "--adminPassword {}".format(passwd),
-        "--hostSource {}".format(peer),
-        "--portSource {}".format(GLUU_ADMIN_PORT),
-        "--hostDestination {}".format(server),
-        "--portDestination {}".format(GLUU_ADMIN_PORT),
+        f"--adminPassword {passwd}",
+        f"--hostSource {peer}",
+        f"--portSource {GLUU_ADMIN_PORT}",
+        f"--hostDestination {server}",
+        f"--portDestination {GLUU_ADMIN_PORT}",
         "-X",
         "-n",
         "-Q",
-        "--trustAll",
     ])
     _, err, code = exec_cmd(init_cmd)
     if code:
@@ -97,15 +91,15 @@ def check_required_entry(host, port, user, password, base_dn):
         dn = "ou=cache-refresh,o=site"
     else:
         passport_rp_client_id = manager.config.get("passport_rp_client_id")
-        dn = "inum={},ou=clients,o=gluu".format(passport_rp_client_id)
+        dn = f"inum={passport_rp_client_id},ou=clients,o=gluu"
 
     cmd = " ".join([
         "/opt/opendj/bin/ldapsearch",
-        "--hostname {}".format(host),
-        "--port {}".format(port),
-        "--baseDN '{}'".format(dn),
-        "--bindDN '{}'".format(user),
-        "--bindPassword {}".format(password),
+        f"--hostname {host}",
+        f"--port {port}",
+        f"--baseDN '{dn}'",
+        f"--bindDN '{user}'",
+        f"--bindPassword {password}",
         "-Z",
         "-X",
         "--searchScope base",
@@ -116,9 +110,7 @@ def check_required_entry(host, port, user, password, base_dn):
 
 
 def get_ldap_status(bind_dn, password):
-    cmd = "/opt/opendj/bin/status -D '{}' -w '{}' --connectTimeout 10000".format(
-        bind_dn, password,
-    )
+    cmd = f"/opt/opendj/bin/status -D '{bind_dn}' -w '{password}' --connectTimeout 10000"
     out, err, code = exec_cmd(cmd)
     return out.strip(), err.strip(), code
 
@@ -131,8 +123,8 @@ def get_datasources(user, password, interval, non_repl_only=True):
         out, _, code = get_ldap_status(user, password)
         if code != 0:
             logger.warning(
-                "Unable to get status from LDAP server; reason={}; "
-                "retrying in {} seconds".format(out.decode(), interval)
+                f"Unable to get status from LDAP server; reason={out.decode()}; "
+                f"retrying in {interval} seconds"
             )
             time.sleep(interval)
             continue
@@ -258,8 +250,8 @@ def main():
                 )
                 if code != 0:
                     logger.warning(
-                        "Unable to get required entry at LDAP server {}:1636; "
-                        "reason={}".format(peer, err.decode())
+                        f"Unable to get required entry at LDAP server {peer}:1636; "
+                        f"reason={err.decode()}"
                     )
                     continue
 
