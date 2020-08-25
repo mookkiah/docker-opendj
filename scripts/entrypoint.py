@@ -69,8 +69,14 @@ def install_opendj():
     if all([os.environ.get("JAVA_VERSION", "") >= "1.8.0",
             os.path.isfile("/opt/opendj/config/config.ldif")]):
         with open("/opt/opendj/config/java.properties", "a") as f:
-            f.write("\nstatus.java-args=-Xms8m -client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true"
-                    "\ndsreplication.java-args=-Xms8m -client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true")
+            status_arg = "\nstatus.java-args=-Xms8m -client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true"
+
+            max_ram_percentage = os.environ.get("GLUU_MAX_RAM_PERCENTAGE", "75.0")
+            java_opts = os.environ.get("GLUU_JAVA_OPTIONS", "")
+            repl_arg = f"\ndsreplication.java-args=-client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true -XX:+UseContainerSupport -XX:MaxRAMPercentage={max_ram_percentage} {java_opts}"
+
+            args = "".join([status_arg, repl_arg])
+            f.write(args)
 
 
 def run_dsjavaproperties():
