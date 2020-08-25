@@ -1,4 +1,5 @@
 FROM adoptopenjdk/openjdk11:jre-11.0.8_10-alpine
+# FROM adoptopenjdk/openjdk8:alpine-jre
 
 # symlink JVM
 RUN mkdir -p /usr/lib/jvm/default-jvm /usr/java/latest \
@@ -18,7 +19,7 @@ RUN apk update \
 # ======
 
 ENV WRENDS_VERSION=4.0.0-M3
-ENV WRENDS_BUILD_DATE="2020-08-07 17:34"
+ENV WRENDS_BUILD_DATE="2020-08-25 17:37"
 
 RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${WRENDS_VERSION}/opendj-server-legacy-${WRENDS_VERSION}.zip -P /tmp \
    && mkdir -p /opt \
