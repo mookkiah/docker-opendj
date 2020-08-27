@@ -28,6 +28,7 @@ def get_ldap_entries(host, user, password):
             "site": ("ou=cache-refresh,o=site", "(ou=people)"),
             "cache": ("o=gluu", "(objectClass=gluuOrganization)"),
             "token": ("ou=tokens,o=gluu", "(ou=tokens)"),
+            "session": ("ou=sessions,o=gluu", "(ou=sessions)"),
         }
         search = search_mapping[ldap_mapping]
     else:
