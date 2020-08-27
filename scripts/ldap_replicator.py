@@ -196,9 +196,21 @@ def get_datasources(user, password, interval, non_repl_only=True):
 def get_repl_interval():
     try:
         interval = int(os.environ.get("GLUU_LDAP_REPL_CHECK_INTERVAL", 10))
+        if interval < 1:
+            interval = 10
     except TypeError:
         interval = 10
-    return max(1, interval)
+    return interval
+
+
+def get_repl_max_retries():
+    try:
+        max_retries = int(os.environ.get("GLUU_LDAP_REPL_MAX_RETRIES", 30))
+        if max_retries < 1:
+            max_retries = 30
+    except TypeError:
+        max_retries = 30
+    return max_retries
 
 
 def get_ldap_peers():
@@ -226,14 +238,18 @@ def main():
     ldap_user = manager.config.get("ldap_binddn")
     ldap_password = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
                                 manager.secret.get("encoded_salt")).decode()
-    interval = get_repl_interval()
 
-    while True:
+    interval = get_repl_interval()
+    max_retries = get_repl_max_retries()
+    retry = 0
+
+    # for i in range(0, max_time, interval):
+    while retry < max_retries:
+        logger.info(f"Checking replicated backends (attempt {retry + 1})")
+
         peers = [peer for peer in get_ldap_peers() if peer != server]
 
         for peer in peers:
-            logger.info("Checking replicated backends")
-
             datasources = get_datasources(ldap_user, ldap_password, interval)
 
             # if there's no backend that need to be replicated, skip the rest of the process;
@@ -262,6 +278,7 @@ def main():
 
         # delay between next check
         time.sleep(interval)
+        retry += 1
 
 
 if __name__ == "__main__":
