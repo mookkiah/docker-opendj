@@ -7,8 +7,7 @@ Docker image packaging for OpenDJ/Wren:DS.
 See [Releases](https://github.com/GluuFederation/docker-opendj/releases) for stable versions.
 For bleeding-edge/unstable version, use `gluufederation/wrends:4.2.1_dev`.
 
-!!!Note
-    Starting from v4, `gluufederation/wrends` is a drop-in replacement for older `gluufederation/opendj` image. For older versions, stick with `gluufederation/opendj` instead.
+Note: Starting from v4, `gluufederation/wrends` is a drop-in replacement for older `gluufederation/opendj` image. For older versions, stick with `gluufederation/opendj` instead.
 
 ## Environment Variables
 
