@@ -47,6 +47,7 @@ The following environment variables are supported by the container:
 - `GLUU_LDAP_AUTO_REPLICATE`: enable replication automatically (default to `true`).
 - `GLUU_LDAP_REPL_CHECK_INTERVAL` : Interval between replication check in seconds (default to `10`).
 - `GLUU_LDAP_REPL_MAX_RETRIES`: Maximum retries for auto-replication initialization (default to `30`). After max. retries is reached, the process will be stopped regardless of replication status (may need to run the process manually).
+- `GLUU_SERF_PROFILE`: Serf timing profile (one of `local`, `lan`, or `wan`) To support setting the correct configuration values for each environment (default to `lan`).
 
 ## Initializing LDAP Data
 

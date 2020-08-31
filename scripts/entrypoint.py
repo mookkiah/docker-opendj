@@ -381,6 +381,7 @@ def configure_serf():
         "tags": {"role": "ldap"},
         "discover": "gluu-ldap",
         "log_level": "warn",
+        "profile": os.environ.get("GLUU_SERF_PROFILE", "lan"),
         "encrypt_key": get_keygen(),
     }
     conf_fn.write_text(json.dumps(conf))
