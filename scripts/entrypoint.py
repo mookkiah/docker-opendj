@@ -380,7 +380,7 @@ def configure_serf():
         "node_name": guess_host_addr(),
         "tags": {"role": "ldap"},
         "discover": "gluu-ldap",
-        "log_level": "warn",
+        "log_level": os.environ.get("GLUU_SERF_LOG_LEVEL", "warn"),
         "profile": os.environ.get("GLUU_SERF_PROFILE", "lan"),
         "encrypt_key": get_keygen(),
     }
