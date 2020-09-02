@@ -104,7 +104,7 @@ def ds_context():
     """Ensures Directory Server are up and teardown at the end of the context.
     """
 
-    cmd = "/opt/opendj/bin/status -D '{}' -j {} --connectTimeout 10000".format(
+    cmd = "/opt/opendj/bin/status -D '{}' --bindPasswordFile {} --connectTimeout 10000".format(
         manager.config.get("ldap_binddn"),
         DEFAULT_ADMIN_PW_PATH,
     )

@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import logging.config
 import os
@@ -6,11 +7,12 @@ import socket
 from collections import defaultdict
 
 from pygluu.containerlib import get_manager
-from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
 from pygluu.containerlib.utils import as_boolean
 
 from settings import LOGGING_CONFIG
+
+DEFAULT_ADMIN_PW_PATH = "/opt/opendj/.pw"
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("ldap_replicator")
@@ -24,12 +26,6 @@ def replicate_from(peer, server, base_dn):
     GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
     GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
 
-    passwd = decode_text(
-        manager.secret.get("encoded_ox_ldap_pw"),
-        manager.secret.get("encoded_salt"),
-    ).decode()
-
-    # ldaps_port = manager.config.get("ldaps_port")
     ldap_binddn = manager.config.get("ldap_binddn")
 
     # enable replication for specific backend
@@ -41,16 +37,16 @@ def replicate_from(peer, server, base_dn):
         f"--host1 {peer}",
         f"--port1 {GLUU_ADMIN_PORT}",
         f"--bindDN1 '{ldap_binddn}'",
-        f"--bindPassword1 {passwd}",
+        f"--bindPasswordFile1 {DEFAULT_ADMIN_PW_PATH}",
         f"--replicationPort1 {GLUU_REPLICATION_PORT}",
         "--secureReplication1",
         f"--host2 {server}",
         f"--port2 {GLUU_ADMIN_PORT}",
         f"--bindDN2 '{ldap_binddn}'",
-        f"--bindPassword2 {passwd}",
+        f"--bindPasswordFile2 {DEFAULT_ADMIN_PW_PATH}",
         "--secureReplication2",
         "--adminUID admin",
-        f"--adminPassword {passwd}",
+        f"--adminPasswordFile {DEFAULT_ADMIN_PW_PATH}",
         f"--baseDN '{base_dn}'",
         "-X",
         "-n",
@@ -68,7 +64,7 @@ def replicate_from(peer, server, base_dn):
         "initialize",
         f"--baseDN '{base_dn}'",
         "--adminUID admin",
-        f"--adminPassword {passwd}",
+        f"--adminPasswordFile {DEFAULT_ADMIN_PW_PATH}",
         f"--hostSource {peer}",
         f"--portSource {GLUU_ADMIN_PORT}",
         f"--hostDestination {server}",
@@ -82,7 +78,7 @@ def replicate_from(peer, server, base_dn):
         logger.warning(err.decode().strip())
 
 
-def check_required_entry(host, port, user, password, base_dn):
+def check_required_entry(host, port, user, base_dn):
     """Checks if entry is exist.
     """
     if base_dn == "o=metric":
@@ -99,7 +95,7 @@ def check_required_entry(host, port, user, password, base_dn):
         f"--port {port}",
         f"--baseDN '{dn}'",
         f"--bindDN '{user}'",
-        f"--bindPassword {password}",
+        f"--bindPasswordFile {DEFAULT_ADMIN_PW_PATH}",
         "-Z",
         "-X",
         "--searchScope base",
@@ -109,18 +105,18 @@ def check_required_entry(host, port, user, password, base_dn):
     return out.strip(), err.strip(), code
 
 
-def get_ldap_status(bind_dn, password):
-    cmd = f"/opt/opendj/bin/status -D '{bind_dn}' -w '{password}' --connectTimeout 10000"
+def get_ldap_status(bind_dn):
+    cmd = f"/opt/opendj/bin/status -D '{bind_dn}' --bindPasswordFile {DEFAULT_ADMIN_PW_PATH} --connectTimeout 10000"
     out, err, code = exec_cmd(cmd)
     return out.strip(), err.strip(), code
 
 
-def get_datasources(user, password, interval, non_repl_only=True):
+def get_datasources(user, interval, non_repl_only=True):
     """Get backends.
     """
     # get status from LDAP server
     while True:
-        out, _, code = get_ldap_status(user, password)
+        out, _, code = get_ldap_status(user)
         if code != 0:
             logger.warning(
                 f"Unable to get status from LDAP server; reason={out.decode()}; "
@@ -236,21 +232,21 @@ def main():
     server = socket.getfqdn()
     ldaps_port = manager.config.get("ldaps_port")
     ldap_user = manager.config.get("ldap_binddn")
-    ldap_password = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                                manager.secret.get("encoded_salt")).decode()
+
+    if not os.path.isfile(DEFAULT_ADMIN_PW_PATH):
+        manager.secret.to_file("encoded_ox_ldap_pw", DEFAULT_ADMIN_PW_PATH, decode=True)
 
     interval = get_repl_interval()
     max_retries = get_repl_max_retries()
     retry = 0
 
-    # for i in range(0, max_time, interval):
     while retry < max_retries:
         logger.info(f"Checking replicated backends (attempt {retry + 1})")
 
         peers = [peer for peer in get_ldap_peers() if peer != server]
 
         for peer in peers:
-            datasources = get_datasources(ldap_user, ldap_password, interval)
+            datasources = get_datasources(ldap_user, interval)
 
             # if there's no backend that need to be replicated, skip the rest of the process;
             # note, in some cases the Generation ID will be different due to mismatched data structure
@@ -258,11 +254,15 @@ def main():
             # https://backstage.forgerock.com/knowledge/kb/article/a36616593 for details
             if not datasources:
                 logger.info("All required backends have been replicated")
+
+                # cleanup
+                with contextlib.suppress(FileNotFoundError):
+                    os.unlink(DEFAULT_ADMIN_PW_PATH)
                 return
 
             for dn, _ in datasources.items():
                 _, err, code = check_required_entry(
-                    peer, ldaps_port, ldap_user, ldap_password, dn,
+                    peer, ldaps_port, ldap_user, dn,
                 )
                 if code != 0:
                     logger.warning(
@@ -279,6 +279,10 @@ def main():
         # delay between next check
         time.sleep(interval)
         retry += 1
+
+    # cleanup
+    with contextlib.suppress(FileNotFoundError):
+        os.unlink(DEFAULT_ADMIN_PW_PATH)
 
 
 if __name__ == "__main__":
