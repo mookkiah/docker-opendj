@@ -16,6 +16,7 @@ import ldap3
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
+from pygluu.containerlib.utils import as_boolean
 
 DEFAULT_ADMIN_PW_PATH = "/opt/opendj/.pw"
 
@@ -379,11 +380,16 @@ def configure_serf():
     conf = {
         "node_name": guess_host_addr(),
         "tags": {"role": "ldap"},
-        "discover": "gluu-ldap",
+        # "discover": "gluu-ldap",
         "log_level": os.environ.get("GLUU_SERF_LOG_LEVEL", "warn"),
         "profile": os.environ.get("GLUU_SERF_PROFILE", "lan"),
         "encrypt_key": get_keygen(),
     }
+
+    mcast = as_boolean(os.environ.get("GLUU_SERF_MULTICAST_DISCOVER", False))
+    if mcast:
+        conf["discover"] = "gluu-ldap"
+
     conf_fn.write_text(json.dumps(conf))
 
 
