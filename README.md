@@ -54,8 +54,8 @@ The following environment variables are supported by the container:
 ## Deployment Strategy
 
 1. Deploy single OpenDJ/WrenDS instance
-2. Initialize the data (see [Initializing LDAP Data](./#initializing-ldap-data))
-3. Scale up OpenDJ/WrenDS instances and auto replication will occur by default (see also [LDAP Replication](./#ldap-replication))
+2. Initialize the data (see [Initializing LDAP Data](#initializing-ldap-data))
+3. Scale up OpenDJ/WrenDS instances and auto replication will occur by default (see also [LDAP Replication](#ldap-replication))
 4. Run `python3 /app/scripts/deregister_peer.py` inside the container before removing any OpenDJ/WrenDS instance (in Kubernetes, we can use `preStop` hook instead)
 
 ## Initializing LDAP Data
