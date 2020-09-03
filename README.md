@@ -51,6 +51,13 @@ The following environment variables are supported by the container:
 - `GLUU_SERF_LOG_LEVEL`: The level of logging to show after the Serf agent has started (one of `trace`, `debug`, `info`, `warn`, `err`; default to `warn`).
 - `GLUU_SERF_MULTICAST_DISCOVER`: Auto-discover cluster using mDNS (default to `false`). Note this requires multicast support on network environment.
 
+## Deployment Strategy
+
+1. Deploy single OpenDJ/WrenDS instance
+2. Initialize the data (see [Initializing LDAP Data](./#initializing-ldap-data))
+3. Scale up OpenDJ/WrenDS instances and auto replication will occur by default (see also [LDAP Replication](./#ldap-replication))
+4. Run `python3 /app/scripts/deregister_peer.py` inside the container before removing any OpenDJ/WrenDS instance (in Kubernetes, we can use `preStop` hook instead)
+
 ## Initializing LDAP Data
 
 Starting from v4, the container will not import the initial data into LDAP. Use `gluufederation/persistence` container to do so.
