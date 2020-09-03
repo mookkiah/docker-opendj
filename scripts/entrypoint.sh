@@ -30,7 +30,7 @@ fi
 
 serf agent -config-file /etc/gluu/conf/serf.json &
 
-python3 /app/scripts/ldap_peer.py
+python3 /app/scripts/register_peer.py
 python3 /app/scripts/ldap_replicator.py &
 
 # run OpenDJ server

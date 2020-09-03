@@ -20,6 +20,22 @@ logger = logging.getLogger("ldap_replicator")
 manager = get_manager()
 
 
+@contextlib.contextmanager
+def admin_password_bound(manager, password_file=DEFAULT_ADMIN_PW_PATH):
+    if not os.path.isfile(password_file):
+        manager.secret.to_file(
+            "encoded_ox_ldap_pw", password_file, decode=True,
+        )
+
+    try:
+        yield password_file
+    except Exception:
+        raise
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(password_file)
+
+
 def replicate_from(peer, server, base_dn):
     """Configure replication between 2 LDAP servers.
     """
@@ -28,54 +44,55 @@ def replicate_from(peer, server, base_dn):
 
     ldap_binddn = manager.config.get("ldap_binddn")
 
-    # enable replication for specific backend
-    logger.info(f"Enabling OpenDJ replication of {base_dn} between {peer} and {server}.")
+    with admin_password_bound(manager) as password_file:
+        # enable replication for specific backend
+        logger.info(f"Enabling OpenDJ replication of {base_dn} between {peer} and {server}.")
 
-    enable_cmd = " ".join([
-        "/opt/opendj/bin/dsreplication",
-        "enable",
-        f"--host1 {peer}",
-        f"--port1 {GLUU_ADMIN_PORT}",
-        f"--bindDN1 '{ldap_binddn}'",
-        f"--bindPasswordFile1 {DEFAULT_ADMIN_PW_PATH}",
-        f"--replicationPort1 {GLUU_REPLICATION_PORT}",
-        "--secureReplication1",
-        f"--host2 {server}",
-        f"--port2 {GLUU_ADMIN_PORT}",
-        f"--bindDN2 '{ldap_binddn}'",
-        f"--bindPasswordFile2 {DEFAULT_ADMIN_PW_PATH}",
-        "--secureReplication2",
-        "--adminUID admin",
-        f"--adminPasswordFile {DEFAULT_ADMIN_PW_PATH}",
-        f"--baseDN '{base_dn}'",
-        "-X",
-        "-n",
-        "-Q",
-    ])
-    _, err, code = exec_cmd(enable_cmd)
-    if code:
-        logger.warning(err.decode().strip())
+        enable_cmd = " ".join([
+            "/opt/opendj/bin/dsreplication",
+            "enable",
+            f"--host1 {peer}",
+            f"--port1 {GLUU_ADMIN_PORT}",
+            f"--bindDN1 '{ldap_binddn}'",
+            f"--bindPasswordFile1 {password_file}",
+            f"--replicationPort1 {GLUU_REPLICATION_PORT}",
+            "--secureReplication1",
+            f"--host2 {server}",
+            f"--port2 {GLUU_ADMIN_PORT}",
+            f"--bindDN2 '{ldap_binddn}'",
+            f"--bindPasswordFile2 {password_file}",
+            "--secureReplication2",
+            "--adminUID admin",
+            f"--adminPasswordFile {password_file}",
+            f"--baseDN '{base_dn}'",
+            "-X",
+            "-n",
+            "-Q",
+        ])
+        _, err, code = exec_cmd(enable_cmd)
+        if code:
+            logger.warning(err.decode().strip())
 
-    # initialize replication for specific backend
-    logger.info(f"Initializing OpenDJ replication of {base_dn} between {peer} and {server}.")
+        # initialize replication for specific backend
+        logger.info(f"Initializing OpenDJ replication of {base_dn} between {peer} and {server}.")
 
-    init_cmd = " ".join([
-        "/opt/opendj/bin/dsreplication",
-        "initialize",
-        f"--baseDN '{base_dn}'",
-        "--adminUID admin",
-        f"--adminPasswordFile {DEFAULT_ADMIN_PW_PATH}",
-        f"--hostSource {peer}",
-        f"--portSource {GLUU_ADMIN_PORT}",
-        f"--hostDestination {server}",
-        f"--portDestination {GLUU_ADMIN_PORT}",
-        "-X",
-        "-n",
-        "-Q",
-    ])
-    _, err, code = exec_cmd(init_cmd)
-    if code:
-        logger.warning(err.decode().strip())
+        init_cmd = " ".join([
+            "/opt/opendj/bin/dsreplication",
+            "initialize",
+            f"--baseDN '{base_dn}'",
+            "--adminUID admin",
+            f"--adminPasswordFile {password_file}",
+            f"--hostSource {peer}",
+            f"--portSource {GLUU_ADMIN_PORT}",
+            f"--hostDestination {server}",
+            f"--portDestination {GLUU_ADMIN_PORT}",
+            "-X",
+            "-n",
+            "-Q",
+        ])
+        _, err, code = exec_cmd(init_cmd)
+        if code:
+            logger.warning(err.decode().strip())
 
 
 def check_required_entry(host, port, user, base_dn):
@@ -89,26 +106,28 @@ def check_required_entry(host, port, user, base_dn):
         passport_rp_client_id = manager.config.get("passport_rp_client_id")
         dn = f"inum={passport_rp_client_id},ou=clients,o=gluu"
 
-    cmd = " ".join([
-        "/opt/opendj/bin/ldapsearch",
-        f"--hostname {host}",
-        f"--port {port}",
-        f"--baseDN '{dn}'",
-        f"--bindDN '{user}'",
-        f"--bindPasswordFile {DEFAULT_ADMIN_PW_PATH}",
-        "-Z",
-        "-X",
-        "--searchScope base",
-        "'(objectClass=*)' 1.1",
-    ])
-    out, err, code = exec_cmd(cmd)
-    return out.strip(), err.strip(), code
+    with admin_password_bound(manager) as password_file:
+        cmd = " ".join([
+            "/opt/opendj/bin/ldapsearch",
+            f"--hostname {host}",
+            f"--port {port}",
+            f"--baseDN '{dn}'",
+            f"--bindDN '{user}'",
+            f"--bindPasswordFile {password_file}",
+            "-Z",
+            "-X",
+            "--searchScope base",
+            "'(objectClass=*)' 1.1",
+        ])
+        out, err, code = exec_cmd(cmd)
+        return out.strip(), err.strip(), code
 
 
 def get_ldap_status(bind_dn):
-    cmd = f"/opt/opendj/bin/status -D '{bind_dn}' --bindPasswordFile {DEFAULT_ADMIN_PW_PATH} --connectTimeout 10000"
-    out, err, code = exec_cmd(cmd)
-    return out.strip(), err.strip(), code
+    with admin_password_bound(manager) as password_file:
+        cmd = f"/opt/opendj/bin/status -D '{bind_dn}' --bindPasswordFile {password_file} --connectTimeout 10000"
+        out, err, code = exec_cmd(cmd)
+        return out.strip(), err.strip(), code
 
 
 def get_datasources(user, interval, non_repl_only=True):
@@ -233,9 +252,6 @@ def main():
     ldaps_port = manager.config.get("ldaps_port")
     ldap_user = manager.config.get("ldap_binddn")
 
-    if not os.path.isfile(DEFAULT_ADMIN_PW_PATH):
-        manager.secret.to_file("encoded_ox_ldap_pw", DEFAULT_ADMIN_PW_PATH, decode=True)
-
     interval = get_repl_interval()
     max_retries = get_repl_max_retries()
     retry = 0
@@ -254,10 +270,6 @@ def main():
             # https://backstage.forgerock.com/knowledge/kb/article/a36616593 for details
             if not datasources:
                 logger.info("All required backends have been replicated")
-
-                # cleanup
-                with contextlib.suppress(FileNotFoundError):
-                    os.unlink(DEFAULT_ADMIN_PW_PATH)
                 return
 
             for dn, _ in datasources.items():
@@ -279,10 +291,6 @@ def main():
         # delay between next check
         time.sleep(interval)
         retry += 1
-
-    # cleanup
-    with contextlib.suppress(FileNotFoundError):
-        os.unlink(DEFAULT_ADMIN_PW_PATH)
 
 
 if __name__ == "__main__":

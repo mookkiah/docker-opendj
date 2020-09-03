@@ -1,7 +1,5 @@
 import logging
 import logging.config
-# import struct
-# import fcntl
 import json
 import os
 import socket
@@ -14,19 +12,6 @@ from settings import LOGGING_CONFIG
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("ldap_peer")
-
-
-# def get_ip_addr(ifname):
-#     try:
-#         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-#         addr = socket.inet_ntoa(fcntl.ioctl(
-#             sock.fileno(),
-#             0x8915,  # SIOCGIFADDR
-#             struct.pack('256s', ifname[:15])
-#         )[20:24])
-#     except IOError:
-#         addr = ""
-#     return addr
 
 
 def guess_host_addr():
