@@ -137,7 +137,7 @@ LABEL name="Wren:DS" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
     version="4.2.1" \
-    release="dev" \
+    release="01" \
     summary="Gluu Wren:DS" \
     description="Community fork of OpenDJ, an LDAP server originally developed by ForgeRock"
 
