@@ -123,9 +123,9 @@ def ds_context():
 
 
 def run_upgrade():
-    buildinfo = "3.0.1"
-    if is_wrends():
-        buildinfo = "4.0.0"
+    # buildinfo = "3.0.1"
+    # if is_wrends():
+    buildinfo = "4.0.0"
 
     # check if we need to upgrade
     if os.path.isfile("/opt/opendj/config/buildinfo"):
@@ -486,7 +486,7 @@ def configure_opendj():
 
     if not is_wrends():
         mods.append(
-            ("cn=Syntaxes,cn=config", "ds-cfg-allow-zero-length-values", "true", ldap3.MODIFY_REPLACE)
+            ("cn=Core Schema,cn=Schema Providers,cn=config", "ds-cfg-allow-zero-length-values-directory-string", "true", ldap3.MODIFY_REPLACE)
         )
 
     with ldap3.Connection(ldap_server, user, password) as conn:

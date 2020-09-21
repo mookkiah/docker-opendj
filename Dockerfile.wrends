@@ -18,13 +18,13 @@ RUN apk update \
 # WrenDS
 # ======
 
-ENV WRENDS_VERSION=4.0.0-M3
-ENV WRENDS_BUILD_DATE="2020-08-25 17:37"
+ENV GLUU_VERSION=4.0.0-M3
+ENV GLUU_BUILD_DATE="2020-08-25 17:37"
 
-RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${WRENDS_VERSION}/opendj-server-legacy-${WRENDS_VERSION}.zip -P /tmp \
+RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${GLUU_VERSION}/opendj-server-legacy-${GLUU_VERSION}.zip -P /tmp \
    && mkdir -p /opt \
-   && unzip -qq /tmp/opendj-server-legacy-${WRENDS_VERSION}.zip -d /opt \
-   && rm -f /tmp/opendj-server-legacy-${WRENDS_VERSION}.zip
+   && unzip -qq /tmp/opendj-server-legacy-${GLUU_VERSION}.zip -d /opt \
+   && rm -f /tmp/opendj-server-legacy-${GLUU_VERSION}.zip
 
 # ====
 # Serf
