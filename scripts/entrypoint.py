@@ -208,8 +208,8 @@ def main():
         install_opendj()
 
         with ds_context():
-            if not is_wrends():
-                run_dsjavaproperties()
+            # if not is_wrends():
+            #     run_dsjavaproperties()
 
             create_backends()
             configure_opendj()

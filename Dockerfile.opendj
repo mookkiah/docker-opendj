@@ -17,10 +17,10 @@ RUN apk update \
 # OpenDJ
 # ======
 
-ENV GLUU_VERSION=4.0.0-SNAPSHOT
-ENV GLUU_BUILD_DATE="2020-09-21 22:15"
+ENV GLUU_VERSION=4.0.0.gluu
+ENV GLUU_BUILD_DATE="2020-09-23 09:18"
 
-RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${GLUU_VERSION}/opendj-server-legacy-${GLUU_VERSION}.zip -P /tmp \
+RUN wget -q https://ox.gluu.org/maven/org/gluufederation/opendj/opendj-server-legacy/${GLUU_VERSION}/opendj-server-legacy-${GLUU_VERSION}.zip -P /tmp \
     && mkdir -p /opt \
     && unzip -qq /tmp/opendj-server-legacy-${GLUU_VERSION}.zip -d /opt \
     && rm -f /tmp/opendj-server-legacy-${GLUU_VERSION}.zip
