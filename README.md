@@ -1,13 +1,11 @@
 ## Overview
 
-Docker image packaging for OpenDJ/Wren:DS.
+Docker image packaging for OpenDJ.
 
 ## Versions
 
 See [Releases](https://github.com/GluuFederation/docker-opendj/releases) for stable versions.
-For bleeding-edge/unstable version, use `gluufederation/wrends:4.2.1_dev`.
-
-Note: Starting from v4, `gluufederation/wrends` is a drop-in replacement for older `gluufederation/opendj` image. For older versions, stick with `gluufederation/opendj` instead.
+For bleeding-edge/unstable version, use `gluufederation/opendj:4.2.1_dev`.
 
 ## Environment Variables
 
@@ -53,10 +51,10 @@ The following environment variables are supported by the container:
 
 ## Deployment Strategy
 
-1. Deploy single OpenDJ/WrenDS instance
+1. Deploy single OpenDJ instance
 2. Initialize the data (see [Initializing LDAP Data](#initializing-ldap-data))
-3. Scale up OpenDJ/WrenDS instances and auto replication will occur by default (see also [LDAP Replication](#ldap-replication))
-4. Run `python3 /app/scripts/deregister_peer.py` inside the container before removing any OpenDJ/WrenDS instance (in Kubernetes, we can use `preStop` hook instead)
+3. Scale up OpenDJ instances and auto replication will occur by default (see also [LDAP Replication](#ldap-replication))
+4. Run `python3 /app/scripts/deregister_peer.py` inside the container before removing any OpenDJ instance (in Kubernetes, we can use `preStop` hook instead)
 
 ## Initializing LDAP Data
 
