@@ -135,8 +135,8 @@ ENV GLUU_LDAP_AUTO_REPLICATE=true \
 LABEL name="OpenDJ" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
-    version="4.2.1" \
-    release="02" \
+    version="4.2.2" \
+    release="dev" \
     summary="Gluu OpenDJ" \
     description="Community fork of OpenDJ, an LDAP server originally developed by ForgeRock"
 
