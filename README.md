@@ -1,16 +1,11 @@
 ## Overview
 
-Docker image packaging for OpenDJ/Wren:DS.
+Docker image packaging for OpenDJ.
 
 ## Versions
 
-- Stable: `gluufederation/wrends:4.2.0_01`
-- Unstable: `gluufederation/wrends:4.2.0_dev`
-
-Refer to [Changelog](./CHANGES.md) for details on new features, bug fixes, or older releases.
-
-!!!Note
-    Starting from v4, `gluufederation/wrends` is a drop-in replacement for older `gluufederation/opendj` image. For older versions, stick with `gluufederation/opendj` instead.
+See [Releases](https://github.com/GluuFederation/docker-opendj/releases) for stable versions.
+For bleeding-edge/unstable version, use `gluufederation/opendj:4.2.1_dev`.
 
 ## Environment Variables
 
@@ -44,8 +39,22 @@ The following environment variables are supported by the container:
 - `GLUU_SECRET_KUBERNETES_USE_KUBE_CONFIG`: Load credentials from `$HOME/.kube/config`, only useful for non-container environment (default to `false`).
 - `GLUU_WAIT_MAX_TIME`: How long the startup "health checks" should run (default to `300` seconds).
 - `GLUU_WAIT_SLEEP_DURATION`: Delay between startup "health checks" (default to `10` seconds).
-- `GLUU_LDAP_AUTO_REPLICATE`: enable replication automatically (default to `true`).
 - `GLUU_CERT_ALT_NAME`: an additional DNS name set as Subject Alt Name in cert. If the value is not an empty string and doesn't match existing Subject Alt Name (or doesn't exist) in existing cert, then new cert will be regenerated and overwrite the one that saved in config backend. This environment variable is __required only if__ oxShibboleth is deployed, to address issue with mismatched `CN` and destination hostname while trying to connect to OpenDJ. Note, any existing containers that connect to OpenDJ must be re-deployed to download new cert.
+- `GLUU_MAX_RAM_PERCENTAGE`: Value passed to Java option `-XX:MaxRAMPercentage`.
+- `GLUU_JAVA_OPTIONS`: Java options passed to entrypoint, i.e. `-Xmx1024m` (default to empty-string).
+- `GLUU_LDAP_AUTO_REPLICATE`: enable replication automatically (default to `true`).
+- `GLUU_LDAP_REPL_CHECK_INTERVAL` : Interval between replication check in seconds (default to `10`).
+- `GLUU_LDAP_REPL_MAX_RETRIES`: Maximum retries for auto-replication initialization (default to `30`). After max. retries is reached, the process will be stopped regardless of replication status (may need to run the process manually).
+- `GLUU_SERF_PROFILE`: Serf timing profile (one of `local`, `lan`, or `wan`) To support setting the correct configuration values for each environment (default to `lan`).
+- `GLUU_SERF_LOG_LEVEL`: The level of logging to show after the Serf agent has started (one of `trace`, `debug`, `info`, `warn`, `err`; default to `warn`).
+- `GLUU_SERF_MULTICAST_DISCOVER`: Auto-discover cluster using mDNS (default to `false`). Note this requires multicast support on network environment.
+
+## Deployment Strategy
+
+1. Deploy single OpenDJ instance
+2. Initialize the data (see [Initializing LDAP Data](#initializing-ldap-data))
+3. Scale up OpenDJ instances and auto replication will occur by default (see also [LDAP Replication](#ldap-replication))
+4. Run `python3 /app/scripts/deregister_peer.py` inside the container before removing any OpenDJ instance (in Kubernetes, we can use `preStop` hook instead)
 
 ## Initializing LDAP Data
 

@@ -1,4 +1,4 @@
-FROM adoptopenjdk/openjdk11:alpine-jre
+FROM adoptopenjdk/openjdk11:jre-11.0.8_10-alpine
 
 # symlink JVM
 RUN mkdir -p /usr/lib/jvm/default-jvm /usr/java/latest \
@@ -14,16 +14,16 @@ RUN apk update \
     && apk add --no-cache --virtual build-deps wget git
 
 # ======
-# WrenDS
+# OpenDJ
 # ======
 
-ARG WRENDS_VERSION=4.0.0-M3
-ARG WRENDS_BUILD_DATE=2019-07-29
+ENV GLUU_VERSION=4.0.0.gluu
+ENV GLUU_BUILD_DATE="2020-09-23 09:18"
 
-RUN wget -q https://ox.gluu.org/maven/org/forgerock/opendj/opendj-server-legacy/${WRENDS_VERSION}/opendj-server-legacy-${WRENDS_VERSION}.zip -P /tmp \
-   && mkdir -p /opt \
-   && unzip -qq /tmp/opendj-server-legacy-${WRENDS_VERSION}.zip -d /opt \
-   && rm -f /tmp/opendj-server-legacy-${WRENDS_VERSION}.zip
+RUN wget -q https://ox.gluu.org/maven/org/gluufederation/opendj/opendj-server-legacy/${GLUU_VERSION}/opendj-server-legacy-${GLUU_VERSION}.zip -P /tmp \
+    && mkdir -p /opt \
+    && unzip -qq /tmp/opendj-server-legacy-${GLUU_VERSION}.zip -d /opt \
+    && rm -f /tmp/opendj-server-legacy-${GLUU_VERSION}.zip
 
 # ====
 # Serf
@@ -41,12 +41,13 @@ RUN wget -q https://releases.hashicorp.com/serf/${SERF_VERSION}/serf_${SERF_VERS
 # ======
 
 RUN apk add --no-cache py3-cryptography
-COPY requirements.txt /tmp/requirements.txt
+COPY requirements.txt /app/requirements.txt
 RUN pip3 install -U pip \
-    && pip3 install -r /tmp/requirements.txt --no-cache-dir
+    && pip3 install -r /app/requirements.txt --no-cache-dir \
+    && rm -rf /src/pygluu-containerlib/.git
 
 # =======
-# License
+# cleanup
 # =======
 
 RUN apk del build-deps \
@@ -117,21 +118,26 @@ ENV GLUU_PERSISTENCE_TYPE=ldap \
 ENV GLUU_LDAP_AUTO_REPLICATE=true \
     GLUU_ADMIN_PORT=4444 \
     GLUU_REPLICATION_PORT=8989 \
-    GLUU_JMX_PORT=1689 \
-    GLUU_LDAP_REPL_CHECK_INTERVAL=10 \
     GLUU_WAIT_MAX_TIME=300 \
-    GLUU_WAIT_SLEEP_DURATION=10
+    GLUU_WAIT_SLEEP_DURATION=10 \
+    GLUU_MAX_RAM_PERCENTAGE=75.0 \
+    GLUU_JAVA_OPTIONS="" \
+    GLUU_LDAP_AUTO_REPLICATE=true \
+    GLUU_LDAP_REPL_CHECK_INTERVAL=10 \
+    GLUU_LDAP_REPL_MAX_RETRIES=30 \
+    GLUU_SERF_PROFILE=lan \
+    GLUU_SERF_LOG_LEVEL=warn
 
 # ====
 # misc
-# ====
+# =====
 
-LABEL name="Wren:DS" \
+LABEL name="OpenDJ" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
-    version="4.2.0" \
+    version="4.2.1" \
     release="02" \
-    summary="Gluu Wren:DS" \
+    summary="Gluu OpenDJ" \
     description="Community fork of OpenDJ, an LDAP server originally developed by ForgeRock"
 
 RUN mkdir -p /etc/certs /flag /deploy /app/tmp /etc/gluu/conf
@@ -139,8 +145,6 @@ COPY schemas/*.ldif /opt/opendj/template/config/schema/
 COPY templates /app/templates
 COPY scripts /app/scripts
 RUN chmod +x /app/scripts/entrypoint.sh
-# \
-#     && chmod +x /app/scripts/serf_proxy.py
 
 ENTRYPOINT ["tini", "-e", "143" ,"-g", "--"]
 CMD ["sh", "/app/scripts/entrypoint.sh"]

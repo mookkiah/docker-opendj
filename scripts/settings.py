@@ -26,6 +26,11 @@ LOGGING_CONFIG = {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
+        },
+        "ldap_peer": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
         }
     },
 }
