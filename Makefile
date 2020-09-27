@@ -1,6 +1,4 @@
-.DEFAULT_GOAL := build-dev
-
-GLUU_VERSION=4.2.2
+GLUU_VERSION=4.2.1
 IMAGE_NAME=gluufederation/opendj
 UNSTABLE_VERSION=dev
 
