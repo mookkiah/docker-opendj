@@ -40,7 +40,7 @@ RUN wget -q https://releases.hashicorp.com/serf/${SERF_VERSION}/serf_${SERF_VERS
 # Python
 # ======
 
-RUN apk add --no-cache py3-cryptography
+RUN apk add --no-cache py3-cryptography py3-multidict py3-yarl
 COPY requirements.txt /app/requirements.txt
 RUN pip3 install -U pip \
     && pip3 install -r /app/requirements.txt --no-cache-dir \
