@@ -6,9 +6,9 @@ import time
 import socket
 from collections import defaultdict
 
-from pygluu.containerlib import get_manager
-from pygluu.containerlib.utils import exec_cmd
-from pygluu.containerlib.utils import as_boolean
+from jans.pycloudlib import get_manager
+from jans.pycloudlib.utils import exec_cmd
+from jans.pycloudlib.utils import as_boolean
 
 from settings import LOGGING_CONFIG
 
@@ -39,8 +39,8 @@ def admin_password_bound(manager, password_file=DEFAULT_ADMIN_PW_PATH):
 def replicate_from(peer, server, base_dn):
     """Configure replication between 2 LDAP servers.
     """
-    GLUU_ADMIN_PORT = os.environ.get("GLUU_ADMIN_PORT", 4444)
-    GLUU_REPLICATION_PORT = os.environ.get("GLUU_REPLICATION_PORT", 8989)
+    admin_port = os.environ.get("CN_ADMIN_PORT", 4444)
+    repl_port = os.environ.get("CN_REPLICATION_PORT", 8989)
 
     ldap_binddn = manager.config.get("ldap_binddn")
 
@@ -52,13 +52,13 @@ def replicate_from(peer, server, base_dn):
             "/opt/opendj/bin/dsreplication",
             "enable",
             f"--host1 {peer}",
-            f"--port1 {GLUU_ADMIN_PORT}",
+            f"--port1 {admin_port}",
             f"--bindDN1 '{ldap_binddn}'",
             f"--bindPasswordFile1 {password_file}",
-            f"--replicationPort1 {GLUU_REPLICATION_PORT}",
+            f"--replicationPort1 {repl_port}",
             "--secureReplication1",
             f"--host2 {server}",
-            f"--port2 {GLUU_ADMIN_PORT}",
+            f"--port2 {admin_port}",
             f"--bindDN2 '{ldap_binddn}'",
             f"--bindPasswordFile2 {password_file}",
             "--secureReplication2",
@@ -83,9 +83,9 @@ def replicate_from(peer, server, base_dn):
             "--adminUID admin",
             f"--adminPasswordFile {password_file}",
             f"--hostSource {peer}",
-            f"--portSource {GLUU_ADMIN_PORT}",
+            f"--portSource {admin_port}",
             f"--hostDestination {server}",
-            f"--portDestination {GLUU_ADMIN_PORT}",
+            f"--portDestination {admin_port}",
             "-X",
             "-n",
             "-Q",
@@ -104,7 +104,7 @@ def check_required_entry(host, port, user, base_dn):
         dn = "ou=cache-refresh,o=site"
     else:
         passport_rp_client_id = manager.config.get("passport_rp_client_id")
-        dn = f"inum={passport_rp_client_id},ou=clients,o=gluu"
+        dn = f"inum={passport_rp_client_id},ou=clients,{base_dn}"
 
     with admin_password_bound(manager) as password_file:
         cmd = " ".join([
@@ -139,7 +139,7 @@ def get_datasources(user, interval, non_repl_only=True):
         if code != 0:
             logger.warning(
                 f"Unable to get status from LDAP server; reason={out.decode()}; "
-                f"retrying in {interval} seconds"
+                f"retrying in {interval} seconds"  # noqa: C812
             )
             time.sleep(interval)
             continue
@@ -157,7 +157,7 @@ def get_datasources(user, interval, non_repl_only=True):
     #    0.0.0.0:1636 : LDAPS                : Enabled
     #
     #            --- Data Sources ---
-    #    Base DN:                      o=gluu
+    #    Base DN:                      o=jans
     #    Backend ID:                   userRoot
     #    Entries:                      174
     #    Replication:                  Enabled
@@ -176,7 +176,7 @@ def get_datasources(user, interval, non_repl_only=True):
     # the result (if found) would be in the following structure, for example:
     #
     #    {
-    #        "o=gluu": {"replicated": True, "entries": 1},
+    #        "o=jans": {"replicated": True, "entries": 1},
     #        "o=site": {"replicated": False, "entries": 0},
     #        "o=metric": {"replicated": True, "entries": 0},
     #    }
@@ -194,9 +194,12 @@ def get_datasources(user, interval, non_repl_only=True):
             entry_num = src.split(":")[-1].strip()
             datasources[dn]["entries"] = int(entry_num)
 
+    # base_dn = os.environ.get("CN_LDAP_BASE_DN", "o=jans")
+    base_dn = "o=jans"
+
     datasources = {
         k: v for k, v in datasources.items()
-        if k in ("o=gluu", "o=site", "o=metric")
+        if k in (base_dn, "o=site", "o=metric")
     }
 
     if non_repl_only:
@@ -210,7 +213,7 @@ def get_datasources(user, interval, non_repl_only=True):
 
 def get_repl_interval():
     try:
-        interval = int(os.environ.get("GLUU_LDAP_REPL_CHECK_INTERVAL", 10))
+        interval = int(os.environ.get("CN_LDAP_REPL_CHECK_INTERVAL", 10))
         if interval < 1:
             interval = 10
     except TypeError:
@@ -220,7 +223,7 @@ def get_repl_interval():
 
 def get_repl_max_retries():
     try:
-        max_retries = int(os.environ.get("GLUU_LDAP_REPL_MAX_RETRIES", 30))
+        max_retries = int(os.environ.get("CN_LDAP_REPL_MAX_RETRIES", 30))
         if max_retries < 1:
             max_retries = 30
     except TypeError:
@@ -243,7 +246,7 @@ def get_ldap_peers():
 
 
 def main():
-    auto_repl = as_boolean(os.environ.get("GLUU_LDAP_AUTO_REPLICATE", True))
+    auto_repl = as_boolean(os.environ.get("CN_LDAP_AUTO_REPLICATE", True))
     if not auto_repl:
         logger.warning("Auto replication is disabled; skipping replication check")
         return
@@ -279,7 +282,7 @@ def main():
                 if code != 0:
                     logger.warning(
                         f"Unable to get required entry at LDAP server {peer}:1636; "
-                        f"reason={err.decode()}"
+                        f"reason={err.decode()}"  # noqa: C812
                     )
                     continue
 

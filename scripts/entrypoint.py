@@ -13,12 +13,15 @@ from contextlib import contextmanager
 from settings import LOGGING_CONFIG
 
 import ldap3
-from pygluu.containerlib import get_manager
-from pygluu.containerlib.utils import decode_text
-from pygluu.containerlib.utils import exec_cmd
-from pygluu.containerlib.utils import as_boolean
+from jans.pycloudlib import get_manager
+from jans.pycloudlib.utils import decode_text
+from jans.pycloudlib.utils import exec_cmd
+from jans.pycloudlib.utils import as_boolean
 
 DEFAULT_ADMIN_PW_PATH = "/opt/opendj/.pw"
+
+# shortcut
+SubprocessError = subprocess.SubprocessError
 
 manager = get_manager()
 
@@ -51,6 +54,11 @@ def install_opendj():
             fw.write(content)
 
     # 2) run installer
+    keypasswd = decode_text(
+        manager.secret.get("encoded_ldapTrustStorePass"),
+        manager.secret.get("encoded_salt"),
+    ).decode()
+
     cmd = " ".join([
         "/opt/opendj/setup",
         "--no-prompt",
@@ -58,9 +66,7 @@ def install_opendj():
         "--acceptLicense",
         "--propertiesFilePath /opt/opendj/opendj-setup.properties",
         "--usePkcs12keyStore /etc/certs/opendj.pkcs12",
-        "--keyStorePassword {}".format(
-            decode_text(manager.secret.get("encoded_ldapTrustStorePass"), manager.secret.get("encoded_salt")).decode()
-        ),
+        f"--keyStorePassword {keypasswd}",
         "--doNotStart",
     ])
     out, err, code = exec_cmd(cmd)
@@ -72,18 +78,12 @@ def install_opendj():
         with open("/opt/opendj/config/java.properties", "a") as f:
             status_arg = "\nstatus.java-args=-Xms8m -client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true"
 
-            max_ram_percentage = os.environ.get("GLUU_MAX_RAM_PERCENTAGE", "75.0")
-            java_opts = os.environ.get("GLUU_JAVA_OPTIONS", "")
+            max_ram_percentage = os.environ.get("CN_MAX_RAM_PERCENTAGE", "75.0")
+            java_opts = os.environ.get("CN_JAVA_OPTIONS", "")
             repl_arg = f"\ndsreplication.java-args=-client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true -XX:+UseContainerSupport -XX:MaxRAMPercentage={max_ram_percentage} {java_opts}"
 
             args = "".join([status_arg, repl_arg])
             f.write(args)
-
-
-def run_dsjavaproperties():
-    _, err, code = exec_cmd("/opt/opendj/bin/dsjavaproperties")
-    if code and err:
-        logger.warning(err.decode())
 
 
 def sync_ldap_pkcs12():
@@ -104,10 +104,8 @@ def ds_context():
     """Ensures Directory Server are up and teardown at the end of the context.
     """
 
-    cmd = "/opt/opendj/bin/status -D '{}' --bindPasswordFile {} --connectTimeout 10000".format(
-        manager.config.get("ldap_binddn"),
-        DEFAULT_ADMIN_PW_PATH,
-    )
+    binddn = manager.config.get("ldap_binddn")
+    cmd = f"/opt/opendj/bin/status -D '{binddn}' --bindPasswordFile {DEFAULT_ADMIN_PW_PATH} --connectTimeout 10000"
     out, _, code = exec_cmd(cmd)
     running = out.decode().startswith("Unable to connect to the server")
 
@@ -123,8 +121,6 @@ def ds_context():
 
 
 def run_upgrade():
-    # buildinfo = "3.0.1"
-    # if is_wrends():
     buildinfo = "4.0.0"
 
     # check if we need to upgrade
@@ -139,27 +135,28 @@ def run_upgrade():
                 logger.info("Trying to upgrade OpenDJ server")
 
                 # backup old buildinfo
-                exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{}".format(old_buildinfo))
+                exec_cmd(f"cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{old_buildinfo}")
                 _, err, retcode = exec_cmd("/opt/opendj/upgrade --acceptLicense")
-                assert retcode == 0, "Failed to upgrade OpenDJ; reason={}".format(err.decode())
+                if retcode != 0:
+                    raise SubprocessError(f"Failed to upgrade OpenDJ; reason={err.decode()}")
 
                 # backup current buildinfo
-                exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{}".format(buildinfo))
+                exec_cmd(f"cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{buildinfo}")
 
 
 def require_site():
-    GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
-    GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
+    type_ = os.environ.get("CN_PERSISTENCE_TYPE", "ldap")
+    mapping = os.environ.get("CN_PERSISTENCE_LDAP_MAPPING", "default")
 
-    if GLUU_PERSISTENCE_TYPE == "ldap":
+    if type_ == "ldap":
         return True
-    if GLUU_PERSISTENCE_TYPE == "hybrid" and GLUU_PERSISTENCE_LDAP_MAPPING == "site":
+    if type_ == "hybrid" and mapping == "site":
         return True
     return False
 
 
 def main():
-    GLUU_CERT_ALT_NAME = os.environ.get("GLUU_CERT_ALT_NAME", "")
+    cert_alt_name = os.environ.get("CN_CERT_ALT_NAME", "")
 
     # the plain-text admin password is not saved in KV storage,
     # but we have the encoded one
@@ -172,10 +169,10 @@ def main():
     logger.info("Checking certificate's Subject Alt Name (SAN)")
     san = get_certificate_san("/etc/certs/opendj.crt").replace("DNS:", "")
 
-    if GLUU_CERT_ALT_NAME != san:
+    if cert_alt_name != san:
         logger.info("Re-generating OpenDJ certs with SAN support.")
 
-        render_san_cnf(GLUU_CERT_ALT_NAME)
+        render_san_cnf(cert_alt_name)
         regenerate_ldap_certs()
 
         # update secrets
@@ -193,7 +190,7 @@ def main():
         )
 
     # update ldap_init_*
-    manager.config.set("ldap_init_host", GLUU_CERT_ALT_NAME)
+    manager.config.set("ldap_init_host", cert_alt_name)
     manager.config.set("ldap_init_port", 1636)
 
     # do upgrade if required
@@ -208,9 +205,6 @@ def main():
         install_opendj()
 
         with ds_context():
-            # if not is_wrends():
-            #     run_dsjavaproperties()
-
             create_backends()
             configure_opendj()
             configure_opendj_indexes()
@@ -238,8 +232,7 @@ def render_san_cnf(name):
 
 def regenerate_ldap_certs():
     suffix = "opendj"
-    passwd = decode_text(manager.secret.get("encoded_ox_ldap_pw"),
-                         manager.secret.get("encoded_salt")).decode()
+    passwd = decode_text(manager.secret.get("encoded_ox_ldap_pw"), manager.secret.get("encoded_salt")).decode()
     country_code = manager.config.get("country_code")
     state = manager.config.get("state")
     city = manager.config.get("city")
@@ -248,37 +241,39 @@ def regenerate_ldap_certs():
     email = manager.config.get("admin_email")
 
     # create key with password
-    _, err, retcode = exec_cmd(
-        "openssl genrsa -des3 -out /etc/certs/{}.key.orig "
-        "-passout pass:'{}' 2048".format(suffix, passwd))
-    assert retcode == 0, "Failed to generate SSL key with password; reason={}".format(err.decode())
+    _, err, retcode = exec_cmd(f"openssl genrsa -des3 -out /etc/certs/{suffix}.key.orig -passout pass:'{passwd}' 2048")
+    if retcode != 0:
+        raise SubprocessError(f"Failed to generate SSL key with password; reason={err.decode()}")
 
     # create .key
-    _, err, retcode = exec_cmd(
-        "openssl rsa -in /etc/certs/{0}.key.orig "
-        "-passin pass:'{1}' -out /etc/certs/{0}.key".format(suffix, passwd))
-    assert retcode == 0, "Failed to generate SSL key; reason={}".format(err.decode())
+    _, err, retcode = exec_cmd(f"openssl rsa -in /etc/certs/{suffix}.key.orig -passin pass:'{passwd}' -out /etc/certs/{suffix}.key")
+    if retcode != 0:
+        raise SubprocessError(f"Failed to generate SSL key; reason={err.decode()}")
 
     # create .csr
-    _, err, retcode = exec_cmd(
-        "openssl req -new -key /etc/certs/{0}.key "
-        "-out /etc/certs/{0}.csr "
-        "-config /etc/ssl/san.cnf "
-        "-subj /C='{1}'/ST='{2}'/L='{3}'/O='{4}'/CN='{5}'/emailAddress='{6}'".format(suffix, country_code, state, city, org_name, domain, email))
-    assert retcode == 0, "Failed to generate SSL CSR; reason={}".format(err.decode())
+    _, err, retcode = exec_cmd(" ".join([
+        f"openssl req -new -key /etc/certs/{suffix}.key",
+        f"-out /etc/certs/{suffix}.csr",
+        "-config /etc/ssl/san.cnf",
+        f"-subj /C='{country_code}'/ST='{state}'/L='{city}'/O='{org_name}'/CN='{domain}'/emailAddress='{email}'",
+    ]))
+    if retcode != 0:
+        raise SubprocessError(f"Failed to generate SSL CSR; reason={err.decode()}")
 
     # create .crt
-    _, err, retcode = exec_cmd(
-        "openssl x509 -req -days 365 -in /etc/certs/{0}.csr "
-        "-extensions v3_req -extfile /etc/ssl/san.cnf "
-        "-signkey /etc/certs/{0}.key -out /etc/certs/{0}.crt".format(suffix))
-    assert retcode == 0, "Failed to generate SSL cert; reason={}".format(err.decode())
+    _, err, retcode = exec_cmd(" ".join([
+        f"openssl x509 -req -days 365 -in /etc/certs/{suffix}.csr",
+        "-extensions v3_req -extfile /etc/ssl/san.cnf",
+        f"-signkey /etc/certs/{suffix}.key -out /etc/certs/{suffix}.crt",
+    ]))
+    if retcode != 0:
+        raise SubprocessError(f"Failed to generate SSL cert; reason={err.decode()}")
 
-    with open("/etc/certs/{}.pem".format(suffix), "w") as fw:
-        with open("/etc/certs/{}.crt".format(suffix)) as fr:
+    with open(f"/etc/certs/{suffix}.pem", "w") as fw:
+        with open(f"/etc/certs/{suffix}.crt") as fr:
             ldap_ssl_cert = fr.read()
 
-        with open("/etc/certs/{}.key".format(suffix)) as fr:
+        with open(f"/etc/certs/{suffix}.key") as fr:
             ldap_ssl_key = fr.read()
 
         ldap_ssl_cacert = "".join([ldap_ssl_cert, ldap_ssl_key])
@@ -295,19 +290,20 @@ def regenerate_ldap_pkcs12():
         "openssl",
         "pkcs12",
         "-export",
-        "-inkey /etc/certs/{}.key".format(suffix),
-        "-in /etc/certs/{}.crt".format(suffix),
-        "-out /etc/certs/{}.pkcs12".format(suffix),
-        "-name {}".format(hostname),
-        "-passout pass:{}".format(passwd),
+        f"-inkey /etc/certs/{suffix}.key",
+        f"-in /etc/certs/{suffix}.crt",
+        f"-out /etc/certs/{suffix}.pkcs12",
+        f"-name {hostname}",
+        f"-passout pass:{passwd}",
     ])
     _, err, retcode = exec_cmd(cmd)
-    assert retcode == 0, "Failed to generate PKCS12 file; reason={}".format(err.decode())
+    if retcode != 0:
+        raise SubprocessError(f"Failed to generate PKCS12 file; reason={err.decode()}")
 
 
 def get_certificate_san(certpath) -> str:
     openssl_proc = subprocess.Popen(
-        shlex.split("openssl x509 -text -noout -in {}".format(certpath)),
+        shlex.split(f"openssl x509 -text -noout -in {certpath}"),
         stdout=subprocess.PIPE,
     )
     grep_proc = subprocess.Popen(
@@ -331,21 +327,14 @@ def cleanup_config_dir():
     subtree = os.listdir("/opt/opendj/config")
 
     for obj in subtree:
-        path = "/opt/opendj/config/{0}".format(obj)
-        logger.warning(
-            "Found {0} in '/opt/opendj/config/' volume mount. "
-            "/opt/opendj/config should be empty for a successful "
-            "installation.".format(path)
-        )
+        path = f"/opt/opendj/config/{obj}"
+        logger.warning(f"Found {path} in '/opt/opendj/config/' volume mount. /opt/opendj/config should be empty for a successful installation.")
 
         if obj != "lost+found":
-            logger.warning(
-                "{0} will not be removed. Please manually remove any "
-                "data from the volume mount for /opt/opendj/config/.".format(path)
-            )
+            logger.warning(f"{path} will not be removed. Please manually remove any data from the volume mount for /opt/opendj/config/.")
             continue
 
-        logger.info("Removing {0}".format(path))
+        logger.info(f"Removing {path}")
         try:
             # delete directory
             shutil.rmtree(path)
@@ -358,20 +347,16 @@ def cleanup_config_dir():
             logger.warning(exc)
 
 
-def is_wrends():
-    return os.path.isfile("/opt/opendj/lib/wrends.jar")
-
-
 def configure_serf():
     def get_keygen():
-        keygen = manager.secret.get("serf_gluu_ldap_key")
+        keygen = manager.secret.get("serf_jans_ldap_key")
         if not keygen:
             out, _, _ = exec_cmd("serf keygen")
             keygen = out.decode().strip()
-            manager.secret.set("serf_gluu_ldap_key", keygen)
+            manager.secret.set("serf_jans_ldap_key", keygen)
         return keygen
 
-    conf_fn = pathlib.Path("/etc/gluu/conf/serf.json")
+    conf_fn = pathlib.Path("/etc/jans/conf/serf.json")
 
     # skip if config exists
     if conf_fn.is_file():
@@ -380,21 +365,21 @@ def configure_serf():
     conf = {
         "node_name": guess_host_addr(),
         "tags": {"role": "ldap"},
-        # "discover": "gluu-ldap",
-        "log_level": os.environ.get("GLUU_SERF_LOG_LEVEL", "warn"),
-        "profile": os.environ.get("GLUU_SERF_PROFILE", "lan"),
+        "log_level": os.environ.get("CN_SERF_LOG_LEVEL", "warn"),
+        "profile": os.environ.get("CN_SERF_PROFILE", "lan"),
         "encrypt_key": get_keygen(),
     }
 
-    mcast = as_boolean(os.environ.get("GLUU_SERF_MULTICAST_DISCOVER", False))
+    mcast = as_boolean(os.environ.get("CN_SERF_MULTICAST_DISCOVER", False))
     if mcast:
-        conf["discover"] = "gluu-ldap"
+        conf["discover"] = "jans-ldap"
 
     conf_fn.write_text(json.dumps(conf))
 
 
+# @TODO: move to persistence-loader
 def configure_opendj_indexes():
-    logger.info(f"Configuring indexes for available backends.")
+    logger.info("Configuring indexes for available backends.")
 
     with open("/app/templates/index.json") as f:
         data = json.load(f)
@@ -403,7 +388,7 @@ def configure_opendj_indexes():
     user = manager.config.get("ldap_binddn")
     password = decode_text(
         manager.secret.get("encoded_ox_ldap_pw"),
-        manager.secret.get("encoded_salt")
+        manager.secret.get("encoded_salt"),
     )
 
     ldap_server = ldap3.Server(host, 1636, use_ssl=True)
@@ -423,7 +408,7 @@ def configure_opendj_indexes():
                     'objectClass': ['top', 'ds-cfg-backend-index'],
                     'ds-cfg-attribute': [attr_map['attribute']],
                     'ds-cfg-index-type': attr_map['index'],
-                    'ds-cfg-index-entry-limit': ['4000']
+                    'ds-cfg-index-entry-limit': ['4000'],
                 }
 
                 conn.add(dn, attributes=attrs)
@@ -460,6 +445,7 @@ def create_backends():
             sys.exit(1)
 
 
+# @TODO: move to persistence-loader
 def configure_opendj():
     logger.info("Configuring OpenDJ.")
 
@@ -467,7 +453,7 @@ def configure_opendj():
     user = manager.config.get("ldap_binddn")
     password = decode_text(
         manager.secret.get("encoded_ox_ldap_pw"),
-        manager.secret.get("encoded_salt")
+        manager.secret.get("encoded_salt"),
     )
 
     ldap_server = ldap3.Server(host, 1636, use_ssl=True)
@@ -482,12 +468,8 @@ def configure_opendj():
         ('cn=LDAP Connection Handler,cn=Connection Handlers,cn=config', 'ds-cfg-enabled', 'false', ldap3.MODIFY_REPLACE),
         ('cn=JMX Connection Handler,cn=Connection Handlers,cn=config', 'ds-cfg-enabled', 'false', ldap3.MODIFY_REPLACE),
         ('cn=Access Control Handler,cn=config', 'ds-cfg-global-aci', '(targetattr!="userPassword||authPassword||debugsearchindex||changes||changeNumber||changeType||changeTime||targetDN||newRDN||newSuperior||deleteOldRDN")(version 3.0; acl "Anonymous read access"; allow (read,search,compare) userdn="ldap:///anyone";)', ldap3.MODIFY_DELETE),
+        ("cn=Core Schema,cn=Schema Providers,cn=config", "ds-cfg-allow-zero-length-values-directory-string", "true", ldap3.MODIFY_REPLACE),
     ]
-
-    if not is_wrends():
-        mods.append(
-            ("cn=Core Schema,cn=Schema Providers,cn=config", "ds-cfg-allow-zero-length-values-directory-string", "true", ldap3.MODIFY_REPLACE)
-        )
 
     with ldap3.Connection(ldap_server, user, password) as conn:
         for dn, attr, value, mod_type in mods:
@@ -504,7 +486,7 @@ def configure_opendj():
 
         for attr, cn in attrs:
             conn.add(
-                'cn={},cn=Plugins,cn=config'.format(cn),
+                f'cn={cn},cn=Plugins,cn=config',
                 attributes={
                     'objectClass': ['top', 'ds-cfg-plugin', 'ds-cfg-unique-attribute-plugin'],
                     'ds-cfg-java-class': ['org.opends.server.plugins.UniqueAttributePlugin'],
@@ -522,8 +504,8 @@ def configure_opendj():
                     ],
                     'ds-cfg-type': [attr],
                     'cn': [cn],
-                    'ds-cfg-base-dn': ['o=gluu']
-                }
+                    'ds-cfg-base-dn': ["o=jans"],
+                },
             )
             if conn.result["description"] != "success":
                 logger.warning(conn.result["message"])

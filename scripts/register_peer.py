@@ -4,14 +4,14 @@ import json
 import os
 import socket
 
-from pygluu.containerlib import get_manager
-from pygluu.containerlib.utils import as_boolean
-from pygluu.containerlib.utils import exec_cmd
+from jans.pycloudlib import get_manager
+from jans.pycloudlib.utils import as_boolean
+from jans.pycloudlib.utils import exec_cmd
 
 from settings import LOGGING_CONFIG
 
 logging.config.dictConfig(LOGGING_CONFIG)
-logger = logging.getLogger("ldap_peer")
+logger = logging.getLogger("register_peer")
 
 
 def guess_host_addr():
@@ -30,7 +30,7 @@ def register_ldap_peer(manager, hostname):
 
 
 def main():
-    auto_repl = as_boolean(os.environ.get("GLUU_LDAP_AUTO_REPLICATE", True))
+    auto_repl = as_boolean(os.environ.get("CN_LDAP_AUTO_REPLICATE", True))
     if not auto_repl:
         logger.warning("Auto replication is disabled; skipping server registration")
         return
@@ -41,7 +41,7 @@ def main():
     # register current server for discovery
     register_ldap_peer(manager, server)
 
-    mcast = as_boolean(os.environ.get("GLUU_SERF_MULTICAST_DISCOVER", False))
+    mcast = as_boolean(os.environ.get("CN_SERF_MULTICAST_DISCOVER", False))
     if mcast:
         return
 

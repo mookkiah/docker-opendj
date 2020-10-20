@@ -8,7 +8,7 @@ set -e
 set_java_args() {
     # not sure if we can omit `-server` safely
     local java_args="-server"
-    java_args="${java_args} -XX:+UseContainerSupport -XX:MaxRAMPercentage=${GLUU_MAX_RAM_PERCENTAGE} ${GLUU_JAVA_OPTIONS}"
+    java_args="${java_args} -XX:+UseContainerSupport -XX:MaxRAMPercentage=${CN_MAX_RAM_PERCENTAGE} ${CN_JAVA_OPTIONS}"
     # set the env var so it is loaded by `start-ds` script
     export OPENDJ_JAVA_ARGS=${java_args}
 }
@@ -28,7 +28,7 @@ if [ ! -f /deploy/touched ]; then
     touch /deploy/touched
 fi
 
-serf agent -config-file /etc/gluu/conf/serf.json &
+serf agent -config-file /etc/jans/conf/serf.json &
 
 python3 /app/scripts/register_peer.py
 python3 /app/scripts/ldap_replicator.py &

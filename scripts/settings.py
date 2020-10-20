@@ -12,7 +12,7 @@ LOGGING_CONFIG = {
         },
     },
     "loggers": {
-        "pygluu.containerlib": {
+        "jans.pycloudlib": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": True,
@@ -27,10 +27,10 @@ LOGGING_CONFIG = {
             "level": "INFO",
             "propagate": False,
         },
-        "ldap_peer": {
+        "register_peer": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
-        }
+        },
     },
 }

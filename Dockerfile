@@ -19,8 +19,9 @@ RUN apk update \
 
 ENV GLUU_VERSION=4.0.0.gluu
 ENV GLUU_BUILD_DATE="2020-09-23 09:18"
+ENV GLUU_SOURCE_URL=https://ox.gluu.org/maven/org/gluufederation/opendj/opendj-server-legacy/${GLUU_VERSION}/opendj-server-legacy-${GLUU_VERSION}.zip
 
-RUN wget -q https://ox.gluu.org/maven/org/gluufederation/opendj/opendj-server-legacy/${GLUU_VERSION}/opendj-server-legacy-${GLUU_VERSION}.zip -P /tmp \
+RUN wget -q ${GLUU_SOURCE_URL} -P /tmp \
     && mkdir -p /opt \
     && unzip -qq /tmp/opendj-server-legacy-${GLUU_VERSION}.zip -d /opt \
     && rm -f /tmp/opendj-server-legacy-${GLUU_VERSION}.zip
@@ -40,11 +41,11 @@ RUN wget -q https://releases.hashicorp.com/serf/${SERF_VERSION}/serf_${SERF_VERS
 # Python
 # ======
 
-RUN apk add --no-cache py3-cryptography py3-multidict py3-yarl
+RUN apk add --no-cache py3-cryptography
 COPY requirements.txt /app/requirements.txt
 RUN pip3 install -U pip \
     && pip3 install -r /app/requirements.txt --no-cache-dir \
-    && rm -rf /src/pygluu-containerlib/.git
+    && rm -rf /src/jans-pycloudlib/.git
 
 # =======
 # cleanup
@@ -72,61 +73,58 @@ EXPOSE 4444
 # Config ENV
 # ==========
 
-ENV GLUU_CONFIG_ADAPTER=consul \
-    GLUU_CONFIG_CONSUL_HOST=localhost \
-    GLUU_CONFIG_CONSUL_PORT=8500 \
-    GLUU_CONFIG_CONSUL_CONSISTENCY=stale \
-    GLUU_CONFIG_CONSUL_SCHEME=http \
-    GLUU_CONFIG_CONSUL_VERIFY=false \
-    GLUU_CONFIG_CONSUL_CACERT_FILE=/etc/certs/consul_ca.crt \
-    GLUU_CONFIG_CONSUL_CERT_FILE=/etc/certs/consul_client.crt \
-    GLUU_CONFIG_CONSUL_KEY_FILE=/etc/certs/consul_client.key \
-    GLUU_CONFIG_CONSUL_TOKEN_FILE=/etc/certs/consul_token \
-    GLUU_CONFIG_KUBERNETES_NAMESPACE=default \
-    GLUU_CONFIG_KUBERNETES_CONFIGMAP=gluu \
-    GLUU_CONFIG_KUBERNETES_USE_KUBE_CONFIG=false
+ENV CN_CONFIG_ADAPTER=consul \
+    CN_CONFIG_CONSUL_HOST=localhost \
+    CN_CONFIG_CONSUL_PORT=8500 \
+    CN_CONFIG_CONSUL_CONSISTENCY=stale \
+    CN_CONFIG_CONSUL_SCHEME=http \
+    CN_CONFIG_CONSUL_VERIFY=false \
+    CN_CONFIG_CONSUL_CACERT_FILE=/etc/certs/consul_ca.crt \
+    CN_CONFIG_CONSUL_CERT_FILE=/etc/certs/consul_client.crt \
+    CN_CONFIG_CONSUL_KEY_FILE=/etc/certs/consul_client.key \
+    CN_CONFIG_CONSUL_TOKEN_FILE=/etc/certs/consul_token \
+    CN_CONFIG_CONSUL_NAMESPACE=jans \
+    CN_CONFIG_KUBERNETES_NAMESPACE=default \
+    CN_CONFIG_KUBERNETES_CONFIGMAP=gluu \
+    CN_CONFIG_KUBERNETES_USE_KUBE_CONFIG=false
 
 # ==========
 # Secret ENV
 # ==========
 
-ENV GLUU_SECRET_ADAPTER=vault \
-    GLUU_SECRET_VAULT_SCHEME=http \
-    GLUU_SECRET_VAULT_HOST=localhost \
-    GLUU_SECRET_VAULT_PORT=8200 \
-    GLUU_SECRET_VAULT_VERIFY=false \
-    GLUU_SECRET_VAULT_ROLE_ID_FILE=/etc/certs/vault_role_id \
-    GLUU_SECRET_VAULT_SECRET_ID_FILE=/etc/certs/vault_secret_id \
-    GLUU_SECRET_VAULT_CERT_FILE=/etc/certs/vault_client.crt \
-    GLUU_SECRET_VAULT_KEY_FILE=/etc/certs/vault_client.key \
-    GLUU_SECRET_VAULT_CACERT_FILE=/etc/certs/vault_ca.crt \
-    GLUU_SECRET_KUBERNETES_NAMESPACE=default \
-    GLUU_SECRET_KUBERNETES_SECRET=gluu \
-    GLUU_SECRET_KUBERNETES_USE_KUBE_CONFIG=false
-
-# ===============
-# Persistence ENV
-# ===============
-
-ENV GLUU_PERSISTENCE_TYPE=ldap \
-    GLUU_PERSISTENCE_LDAP_MAPPING=default
+ENV CN_SECRET_ADAPTER=vault \
+    CN_SECRET_VAULT_SCHEME=http \
+    CN_SECRET_VAULT_HOST=localhost \
+    CN_SECRET_VAULT_PORT=8200 \
+    CN_SECRET_VAULT_VERIFY=false \
+    CN_SECRET_VAULT_ROLE_ID_FILE=/etc/certs/vault_role_id \
+    CN_SECRET_VAULT_SECRET_ID_FILE=/etc/certs/vault_secret_id \
+    CN_SECRET_VAULT_CERT_FILE=/etc/certs/vault_client.crt \
+    CN_SECRET_VAULT_KEY_FILE=/etc/certs/vault_client.key \
+    CN_SECRET_VAULT_CACERT_FILE=/etc/certs/vault_ca.crt \
+    CN_SECRET_VAULT_NAMESPACE=jans \
+    CN_SECRET_KUBERNETES_NAMESPACE=default \
+    CN_SECRET_KUBERNETES_SECRET=gluu \
+    CN_SECRET_KUBERNETES_USE_KUBE_CONFIG=false
 
 # ===========
 # Generic ENV
 # ===========
 
-ENV GLUU_LDAP_AUTO_REPLICATE=true \
-    GLUU_ADMIN_PORT=4444 \
-    GLUU_REPLICATION_PORT=8989 \
-    GLUU_WAIT_MAX_TIME=300 \
-    GLUU_WAIT_SLEEP_DURATION=10 \
-    GLUU_MAX_RAM_PERCENTAGE=75.0 \
-    GLUU_JAVA_OPTIONS="" \
-    GLUU_LDAP_AUTO_REPLICATE=true \
-    GLUU_LDAP_REPL_CHECK_INTERVAL=10 \
-    GLUU_LDAP_REPL_MAX_RETRIES=30 \
-    GLUU_SERF_PROFILE=lan \
-    GLUU_SERF_LOG_LEVEL=warn
+ENV CN_LDAP_AUTO_REPLICATE=true \
+    CN_LDAP_REPL_CHECK_INTERVAL=10 \
+    CN_LDAP_REPL_MAX_RETRIES=30 \
+    CN_ADMIN_PORT=4444 \
+    CN_REPLICATION_PORT=8989 \
+    CN_WAIT_MAX_TIME=300 \
+    CN_WAIT_SLEEP_DURATION=10 \
+    CN_MAX_RAM_PERCENTAGE=75.0 \
+    CN_JAVA_OPTIONS="" \
+    CN_SERF_PROFILE=lan \
+    CN_SERF_LOG_LEVEL=warn \
+    CN_PERSISTENCE_TYPE=ldap \
+    CN_PERSISTENCE_LDAP_MAPPING=default \
+    CN_NAMESPACE=jans
 
 # ====
 # misc
@@ -140,7 +138,7 @@ LABEL name="OpenDJ" \
     summary="Gluu OpenDJ" \
     description="Community fork of OpenDJ, an LDAP server originally developed by ForgeRock"
 
-RUN mkdir -p /etc/certs /flag /deploy /app/tmp /etc/gluu/conf
+RUN mkdir -p /etc/certs /deploy /etc/jans/conf
 COPY schemas/*.ldif /opt/opendj/template/config/schema/
 COPY templates /app/templates
 COPY scripts /app/scripts

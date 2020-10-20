@@ -4,8 +4,8 @@ import logging.config
 import os
 import socket
 
-from pygluu.containerlib import get_manager
-from pygluu.containerlib.utils import exec_cmd
+from jans.pycloudlib import get_manager
+from jans.pycloudlib.utils import exec_cmd
 
 from settings import LOGGING_CONFIG
 
