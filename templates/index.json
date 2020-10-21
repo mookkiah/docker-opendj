@@ -215,13 +215,6 @@
     },
 
     {
-        "attribute": "jansExternalUid",
-        "type": "string",
-        "index": ["equality"],
-        "backend": ["userRoot"]
-    },
-
-    {
         "attribute": "jansTicket",
         "type": "string",
         "index": ["equality"],
@@ -251,13 +244,6 @@
 
     {
         "attribute": "jansPublicKeyId",
-        "type": "string",
-        "index": ["equality"],
-        "backend": ["userRoot"]
-    },
-
-    {
-        "attribute": "oxStatus",
         "type": "string",
         "index": ["equality"],
         "backend": ["userRoot"]
@@ -306,7 +292,7 @@
     },
 
     {
-        "attribute": "jansExternalId",
+        "attribute": "jansExternalUid",
         "type": "string",
         "index": ["presence", "equality"],
         "backend": ["userRoot"]
