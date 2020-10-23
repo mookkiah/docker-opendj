@@ -302,7 +302,7 @@
         "attribute": "del",
         "type": "boolean",
         "index": ["equality"],
-        "backend": ["userRoot"]
+        "backend": ["userRoot", "metric"]
     },
 
     {
