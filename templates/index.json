@@ -215,6 +215,20 @@
     },
 
     {
+        "attribute": "sid",
+        "type": "string",
+        "index": ["equality"],
+        "backend": ["userRoot"]
+    },
+
+    {
+        "attribute": "jansExternalUid",
+        "type": "string",
+        "index": ["equality"],
+        "backend": ["userRoot"]
+    },
+
+    {
         "attribute": "jansTicket",
         "type": "string",
         "index": ["equality"],
@@ -292,7 +306,7 @@
     },
 
     {
-        "attribute": "jansExternalUid",
+        "attribute": "jansTrustExternalId",
         "type": "string",
         "index": ["presence", "equality"],
         "backend": ["userRoot"]
