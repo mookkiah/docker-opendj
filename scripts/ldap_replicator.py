@@ -103,8 +103,8 @@ def check_required_entry(host, port, user, base_dn):
     elif base_dn == "o=site":
         dn = "ou=cache-refresh,o=site"
     else:
-        passport_rp_client_id = manager.config.get("passport_rp_client_id")
-        dn = f"inum={passport_rp_client_id},ou=clients,{base_dn}"
+        client_id = manager.config.get('oxauth_client_id')
+        dn = f"inum={client_id},ou=clients,{base_dn}"
 
     with admin_password_bound(manager) as password_file:
         cmd = " ".join([
