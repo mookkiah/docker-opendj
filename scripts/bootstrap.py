@@ -393,7 +393,7 @@ def configure_opendj_indexes():
 
     ldap_server = ldap3.Server(host, 1636, use_ssl=True)
 
-    backends = ["userRoot"]
+    backends = ["userRoot", "metric"]
     if require_site():
         backends.append("site")
 

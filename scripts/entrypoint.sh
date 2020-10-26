@@ -24,7 +24,7 @@ export JAVA_VERSION=$(java -version 2>&1 | awk -F '[\"_]' 'NR==1{print $2}')
 python3 /app/scripts/wait.py
 
 if [ ! -f /deploy/touched ]; then
-    python3 /app/scripts/entrypoint.py
+    python3 /app/scripts/bootstrap.py
     touch /deploy/touched
 fi
 
