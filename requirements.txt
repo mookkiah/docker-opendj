@@ -1,1 +1,1 @@
--e git+https://github.com/JanssenProject/jans-pycloudlib@ddc196b1185656a1105340406417b6d50c521c30#egg=jans-pycloudlib
+-e git+https://github.com/JanssenProject/jans-pycloudlib@3d9594ec537a8318bf30d8329481fcd889620a8b#egg=jans-pycloudlib
