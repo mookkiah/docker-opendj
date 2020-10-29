@@ -206,8 +206,8 @@ def main():
 
         with ds_context():
             create_backends()
-            configure_opendj()
-            configure_opendj_indexes()
+            # configure_opendj()
+            # configure_opendj_indexes()
 
     # post-installation cleanup
     for f in [DEFAULT_ADMIN_PW_PATH, "/opt/opendj/opendj-setup.properties"]:
