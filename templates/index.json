@@ -127,7 +127,7 @@
         "attribute": "exp",
         "type": "date",
         "index": ["ordering"],
-        "backend": ["userRoot"]
+        "backend": ["userRoot", "metric"]
     },
 
     {
@@ -264,6 +264,13 @@
     },
 
     {
+        "attribute": "jansStatus",
+        "type": "string",
+        "index": ["equality"],
+        "backend": ["userRoot"]
+    },
+
+    {
         "attribute": "jansAttrs",
         "type": "string",
         "index": ["equality"],
@@ -302,7 +309,7 @@
         "attribute": "del",
         "type": "boolean",
         "index": ["equality"],
-        "backend": ["userRoot"]
+        "backend": ["userRoot", "metric"]
     },
 
     {
