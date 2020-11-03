@@ -206,8 +206,8 @@ def main():
 
         with ds_context():
             create_backends()
-            # configure_opendj()
-            # configure_opendj_indexes()
+            configure_opendj()
+            configure_opendj_indexes()
 
     # post-installation cleanup
     for f in [DEFAULT_ADMIN_PW_PATH, "/opt/opendj/opendj-setup.properties"]:
@@ -377,7 +377,6 @@ def configure_serf():
     conf_fn.write_text(json.dumps(conf))
 
 
-# @TODO: move to persistence-loader
 def configure_opendj_indexes():
     logger.info("Configuring indexes for available backends.")
 
@@ -445,7 +444,6 @@ def create_backends():
             sys.exit(1)
 
 
-# @TODO: move to persistence-loader
 def configure_opendj():
     logger.info("Configuring OpenDJ.")
 
