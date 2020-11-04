@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from settings import LOGGING_CONFIG
 
 import ldap3
+import javaproperties
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import exec_cmd
@@ -148,18 +149,18 @@ def run_upgrade():
 
 
 def require_site():
-    GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
-    GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
+    persistence_type = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
+    ldap_mapping = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
 
-    if GLUU_PERSISTENCE_TYPE == "ldap":
+    if persistence_type == "ldap":
         return True
-    if GLUU_PERSISTENCE_TYPE == "hybrid" and GLUU_PERSISTENCE_LDAP_MAPPING == "site":
+    if persistence_type == "hybrid" and ldap_mapping == "site":
         return True
     return False
 
 
 def main():
-    GLUU_CERT_ALT_NAME = os.environ.get("GLUU_CERT_ALT_NAME", "")
+    alt_name = os.environ.get("GLUU_CERT_ALT_NAME", "")
 
     # the plain-text admin password is not saved in KV storage,
     # but we have the encoded one
@@ -172,10 +173,10 @@ def main():
     logger.info("Checking certificate's Subject Alt Name (SAN)")
     san = get_certificate_san("/etc/certs/opendj.crt").replace("DNS:", "")
 
-    if GLUU_CERT_ALT_NAME != san:
+    if alt_name != san:
         logger.info("Re-generating OpenDJ certs with SAN support.")
 
-        render_san_cnf(GLUU_CERT_ALT_NAME)
+        render_san_cnf(alt_name)
         regenerate_ldap_certs()
 
         # update secrets
@@ -193,11 +194,14 @@ def main():
         )
 
     # update ldap_init_*
-    manager.config.set("ldap_init_host", GLUU_CERT_ALT_NAME)
+    manager.config.set("ldap_init_host", alt_name)
     manager.config.set("ldap_init_port", 1636)
 
     # do upgrade if required
     run_upgrade()
+
+    # patch for https://bugs.openjdk.java.net/browse/JDK-8217094
+    disable_tls13()
 
     # Below we will check if there is a `/opt/opendj/config/config.ldif` or
     # `/opt/opendj/config/schema` directory with files signalling that OpenDJ
@@ -394,7 +398,7 @@ def configure_serf():
 
 
 def configure_opendj_indexes():
-    logger.info(f"Configuring indexes for available backends.")
+    logger.info("Configuring indexes for available backends.")
 
     with open("/app/templates/index.json") as f:
         data = json.load(f)
@@ -527,6 +531,21 @@ def configure_opendj():
             )
             if conn.result["description"] != "success":
                 logger.warning(conn.result["message"])
+
+
+def disable_tls13():
+    java_version = os.environ.get("JAVA_VERSION", "")
+    security_file = "/usr/lib/jvm/default-jvm/jre/conf/security/java.security"
+
+    with open(security_file) as f:
+        data = javaproperties.loads(f.read())
+
+        if "TLSv1.3" in data["jdk.tls.disabledAlgorithms"]:
+            return
+
+    with open(security_file, "w") as f:
+        data["jdk.tls.disabledAlgorithms"] = "TLSv1.3, " + data["jdk.tls.disabledAlgorithms"]
+        f.write(javaproperties.dumps(data))
 
 
 if __name__ == "__main__":
