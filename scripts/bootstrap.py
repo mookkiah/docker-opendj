@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from settings import LOGGING_CONFIG
 
 import ldap3
+import javaproperties
 from jans.pycloudlib import get_manager
 from jans.pycloudlib.utils import decode_text
 from jans.pycloudlib.utils import exec_cmd
@@ -195,6 +196,9 @@ def main():
 
     # do upgrade if required
     run_upgrade()
+
+    # patch for https://bugs.openjdk.java.net/browse/JDK-8217094
+    disable_tls13()
 
     # Below we will check if there is a `/opt/opendj/config/config.ldif` or
     # `/opt/opendj/config/schema` directory with files signalling that OpenDJ
@@ -507,6 +511,20 @@ def configure_opendj():
             )
             if conn.result["description"] != "success":
                 logger.warning(conn.result["message"])
+
+
+def disable_tls13():
+    security_file = "/usr/lib/jvm/default-jvm/jre/conf/security/java.security"
+
+    with open(security_file) as f:
+        data = javaproperties.loads(f.read())
+
+        if "TLSv1.3" in data["jdk.tls.disabledAlgorithms"]:
+            return
+
+    with open(security_file, "w") as f:
+        data["jdk.tls.disabledAlgorithms"] = "TLSv1.3, " + data["jdk.tls.disabledAlgorithms"]
+        f.write(javaproperties.dumps(data))
 
 
 if __name__ == "__main__":
