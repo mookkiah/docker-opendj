@@ -24,9 +24,9 @@ def get_ldap_entries(host, user, password):
         # `cache` and `token` mapping only have base entries
         search_mapping = {
             "default": default_search,
-            "user": ("inum=60B7,ou=groups,o=jans", "(objectClass=gluuGroup)"),
+            "user": ("inum=60B7,ou=groups,o=jans", "(objectClass=jansGrp)"),
             "site": ("ou=cache-refresh,o=site", "(ou=people)"),
-            "cache": ("o=jans", "(objectClass=gluuOrganization)"),
+            "cache": ("o=jans", "(ou=cache)"),
             "token": ("ou=tokens,o=jans", "(ou=tokens)"),
             "session": ("ou=sessions,o=jans", "(ou=sessions)"),
         }
