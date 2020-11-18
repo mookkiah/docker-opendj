@@ -28,13 +28,6 @@
     },
 
     {
-        "attribute": "iname",
-        "type": "string",
-        "index": ["equality"],
-        "backend": ["userRoot", "site"]
-    },
-
-    {
         "attribute": "uniqueIdentifier",
         "type": "string",
         "index": ["equality"],
@@ -264,13 +257,6 @@
     },
 
     {
-        "attribute": "jansStatus",
-        "type": "string",
-        "index": ["equality"],
-        "backend": ["userRoot"]
-    },
-
-    {
         "attribute": "jansAttrs",
         "type": "string",
         "index": ["equality"],
@@ -313,7 +299,7 @@
     },
 
     {
-        "attribute": "jansTrustExternalId",
+        "attribute": "jansExternalId",
         "type": "string",
         "index": ["presence", "equality"],
         "backend": ["userRoot"]
