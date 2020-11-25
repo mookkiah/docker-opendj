@@ -49,13 +49,6 @@
     },
 
     {
-        "attribute": "jansClntId",
-        "type": "string",
-        "index": ["equality"],
-        "backend": ["userRoot"]
-    },
-
-    {
         "attribute": "clnId",
         "type": "string",
         "index": ["equality"],
@@ -125,13 +118,6 @@
 
     {
         "attribute": "jansLastAccessTime",
-        "type": "date",
-        "index": ["ordering"],
-        "backend": ["userRoot"]
-    },
-
-    {
-        "attribute": "lastModifiedTime",
         "type": "date",
         "index": ["ordering"],
         "backend": ["userRoot"]
@@ -215,7 +201,7 @@
     },
 
     {
-        "attribute": "jansExternalUid",
+        "attribute": "jansExtUid",
         "type": "string",
         "index": ["equality"],
         "backend": ["userRoot"]
@@ -299,7 +285,7 @@
     },
 
     {
-        "attribute": "jansExternalId",
+        "attribute": "jansExtId",
         "type": "string",
         "index": ["presence", "equality"],
         "backend": ["userRoot"]
