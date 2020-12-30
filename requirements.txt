@@ -1,2 +1,2 @@
 javaproperties==0.7.0
--e git+https://github.com/JanssenProject/jans-pycloudlib@2c5adf61a58e8c0e2d664b1a0ef52eddfe1ce109#egg=jans-pycloudlib
+-e git+https://github.com/JanssenProject/jans-pycloudlib@bb8240ac0fd77b7996100de1493847dcc7d8113d#egg=jans-pycloudlib
