@@ -134,7 +134,7 @@ LABEL name="OpenDJ" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
     version="5.0.0" \
-    release="dev" \
+    release="a1" \
     summary="Gluu OpenDJ" \
     description="Community fork of OpenDJ, an LDAP server originally developed by ForgeRock"
 
