@@ -32,5 +32,10 @@ LOGGING_CONFIG = {
             "level": "INFO",
             "propagate": False,
         },
+        "deregister_peer": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }

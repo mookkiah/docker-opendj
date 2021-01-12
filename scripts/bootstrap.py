@@ -7,9 +7,11 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 from contextlib import contextmanager
 
 from settings import LOGGING_CONFIG
+from utils import guess_serf_addr
 
 import ldap3
 import javaproperties
@@ -41,12 +43,15 @@ def install_opendj():
     logger.info("Installing OpenDJ.")
 
     # 1) render opendj-setup.properties
+    # admin_port = 4444
+    admin_port = os.environ.get("CN_LDAP_ADVERTISE_ADMIN_PORT", "4444")
+
     ctx = {
         "ldap_hostname": guess_host_addr(),
         "ldap_port": manager.config.get("ldap_port"),
         "ldaps_port": manager.config.get("ldaps_port"),
         "ldap_jmx_port": 1689,
-        "ldap_admin_port": 4444,
+        "ldap_admin_port": admin_port,
         "opendj_ldap_binddn": manager.config.get("ldap_binddn"),
         "ldapPassFn": DEFAULT_ADMIN_PW_PATH,
         "ldap_backend_type": "je",
@@ -83,8 +88,7 @@ def install_opendj():
             status_arg = "\nstatus.java-args=-Xms8m -client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true"
 
             max_ram_percentage = os.environ.get("CN_MAX_RAM_PERCENTAGE", "75.0")
-            java_opts = os.environ.get("CN_JAVA_OPTIONS", "")
-            repl_arg = f"\ndsreplication.java-args=-client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true -XX:+UseContainerSupport -XX:MaxRAMPercentage={max_ram_percentage} {java_opts}"
+            repl_arg = f"\ndsreplication.java-args=-client -Dcom.sun.jndi.ldap.object.disableEndpointIdentification=true -XX:+UseContainerSupport -XX:MaxRAMPercentage={max_ram_percentage}"
 
             args = "".join([status_arg, repl_arg])
             f.write(args)
@@ -212,10 +216,22 @@ def main():
         cleanup_config_dir()
         install_opendj()
 
+        # modify admin-keystore and ads-truststore (for replication), if required
+        if os.environ.get("CN_SERF_ADVERTISE_ADDR", ""):
+            with ds_context():
+                logger.info("Advertise address is detected ...")
+                logger.info("Reconfiguring keystore for admin")
+                modify_admin_keystore()
+                logger.info("Reconfiguring keystore for replication")
+                modify_ads_truststore()
+
         with ds_context():
             create_backends()
             configure_opendj()
             configure_opendj_indexes()
+
+    # prepare serf config
+    configure_serf()
 
     # post-installation cleanup
     for f in [DEFAULT_ADMIN_PW_PATH, "/opt/opendj/opendj-setup.properties"]:
@@ -223,9 +239,6 @@ def main():
             os.unlink(f)
         except OSError:
             pass
-
-    # prepare serf config
-    configure_serf()
 
 
 def render_san_cnf(name):
@@ -331,27 +344,70 @@ def cleanup_config_dir():
             logger.warning(exc)
 
 
-def configure_serf():
-    def get_keygen():
-        keygen = manager.secret.get("serf_jans_ldap_key")
-        if not keygen:
-            out, _, _ = exec_cmd("serf keygen")
-            keygen = out.decode().strip()
-            manager.secret.set("serf_jans_ldap_key", keygen)
+def resolve_serf_key():
+    def key_from_file():
+        keygen = ""
+        keygen_file = os.environ.get("CN_SERF_KEY_FILE", "/etc/jans/conf/serf-key")
+
+        if os.path.isfile(keygen_file):
+            try:
+                logger.info(f"Loading Serf key from {keygen_file}")
+                with open(keygen_file) as f:
+                    keygen = f.read().strip()
+                    # save it for subsequent access
+                    manager.secret.set("serf_jans_ldap_key", keygen)
+            except UnicodeDecodeError as exc:
+                logger.warning(f"Invalid Serf key; reason={exc}")
         return keygen
 
+    def key_from_cmd():
+        keygen = ""
+
+        logger.info("Loading Serf key from serf keygen command")
+
+        out, err, code = exec_cmd("serf keygen")
+        if code != 0:
+            logger.warning(f"Unable to self-generate Serf key; reason={err.decode()}")
+            return keygen
+
+        keygen = out.decode().strip()
+        # save it for subsequent access
+        manager.secret.set("serf_jans_ldap_key", keygen)
+        return keygen
+
+    # load from secrets (if any)
+    logger.info("Loading Serf key from secrets")
+    keygen = manager.secret.get("serf_jans_ldap_key")
+
+    # no key from secrets
+    if not keygen:
+        logger.warning("Unable to load Serf key from secrets")
+        # try loading it from file or from `serf keygen` command
+        keygen = key_from_file() or key_from_cmd()
+    return keygen
+
+
+def configure_serf():
     conf_fn = pathlib.Path("/etc/jans/conf/serf.json")
 
     # skip if config exists
     if conf_fn.is_file():
         return
 
+    advertise = guess_serf_addr()
+
     conf = {
-        "node_name": guess_host_addr(),
-        "tags": {"role": "ldap"},
+        "node_name": advertise.split(":")[0],
+        "tags": {
+            "role": "ldap",
+            "admin_port": os.environ.get("CN_LDAP_ADVERTISE_ADMIN_PORT", "4444"),
+            "replication_port": os.environ.get("CN_LDAP_ADVERTISE_REPLICATION_PORT", "8989"),
+            "ldaps_port": os.environ.get("CN_LDAP_ADVERTISE_LDAPS_PORT", "1636"),
+        },
         "log_level": os.environ.get("CN_SERF_LOG_LEVEL", "warn"),
         "profile": os.environ.get("CN_SERF_PROFILE", "lan"),
-        "encrypt_key": get_keygen(),
+        "encrypt_key": resolve_serf_key(),
+        "advertise": advertise,
     }
 
     mcast = as_boolean(os.environ.get("CN_SERF_MULTICAST_DISCOVER", False))
@@ -408,8 +464,11 @@ def create_backends():
         mods.append(
             "create-backend --backend-name site --set base-dn:o=site --type je --set enabled:true --set db-cache-percent:20",
         )
+
     hostname = guess_host_addr()
     binddn = manager.config.get("ldap_binddn")
+    admin_port = os.environ.get("CN_LDAP_ADVERTISE_ADMIN_PORT", "4444")
+    # admin_port = 4444
 
     for mod in mods:
         cmd = " ".join([
@@ -417,7 +476,7 @@ def create_backends():
             "--trustAll",
             "--no-prompt",
             f"--hostname {hostname}",
-            "--port 4444",
+            f"--port {admin_port}",
             f"--bindDN '{binddn}'",
             f"--bindPasswordFile {DEFAULT_ADMIN_PW_PATH}",
             mod,
@@ -505,6 +564,172 @@ def disable_tls13():
     with open(security_file, "w") as f:
         data["jdk.tls.disabledAlgorithms"] = "TLSv1.3, " + data["jdk.tls.disabledAlgorithms"]
         f.write(javaproperties.dumps(data))
+
+
+def modify_ads_truststore():
+    def export_ads_certificate():
+        cmd = " ".join([
+            "keytool -export",
+            "-alias ads-certificate",
+            "-keystore /opt/opendj/config/ads-truststore",
+            "-storepass:file /opt/opendj/config/ads-truststore.pin",
+            "-keypass:file /opt/opendj/config/ads-truststore.pin",
+            "-file /opt/opendj/config/ads-cert.crt",
+            "-rfc",
+        ])
+        out, err, code = exec_cmd(cmd)
+        if code != 0:
+            err = err or out
+            logger.error(f"Unable to export ads-certificate; reason={err.decode()}")
+            sys.exit(1)
+
+    def delete_instance_key():
+        export_ads_certificate()
+
+        cmd = "openssl x509 -fingerprint -md5 -noout -in /opt/opendj/config/ads-cert.crt"
+        out, err, code = exec_cmd(cmd)
+        if code != 0:
+            err = err or out
+            logger.error(f"Unable to get ads-cert fingerprint; reason={err.decode()}")
+            sys.exit(1)
+
+        cfg_key = out.decode().split("=")[-1].replace(":", "")
+
+        host = "localhost:1636"
+        user = manager.config.get("ldap_binddn")
+        password = decode_text(
+            manager.secret.get("encoded_ox_ldap_pw"),
+            manager.secret.get("encoded_salt")
+        )
+
+        ldap_server = ldap3.Server(host, 1636, use_ssl=True)
+
+        with ldap3.Connection(ldap_server, user, password) as conn:
+            conn.delete(f"ds-cfg-key-id={cfg_key},cn=instance keys,cn=admin data")
+            if conn.result["description"] != "success":
+                logger.warning(conn.result["message"])
+
+    def recreate_ads_truststore():
+        os.unlink("/opt/opendj/config/ads-truststore")
+
+        addr = guess_serf_addr().split(":")[0]
+        hostname = socket.getfqdn()
+
+        cmd = " ".join([
+            "keytool -genkeypair",
+            "-alias ads-certificate",
+            "-keyalg RSA",
+            "-validity 365",
+            "-keysize 2048",
+            "-storetype JKS",
+            "-keystore /opt/opendj/config/ads-truststore",
+            "-storepass:file /opt/opendj/config/ads-truststore.pin",
+            "-keypass:file /opt/opendj/config/ads-truststore.pin",
+            f"-dname 'CN={addr}, O=OpenDJ RSA Certificate'",
+            f"-ext san=dns:{hostname},dns:{addr}",
+        ])
+        out, err, code = exec_cmd(cmd)
+        if code != 0:
+            err = err or out
+            logger.error(f"Unable to create ads-truststore; reason={err.decode()}")
+            sys.exit(1)
+
+    def add_new_cert():
+        export_ads_certificate()
+
+        cmd = "openssl x509 -fingerprint -md5 -noout -in /opt/opendj/config/ads-cert.crt"
+        out, err, code = exec_cmd(cmd)
+        if code != 0:
+            err = err or out
+            logger.error(f"Unable to get ads-cert fingerprint; reason={err.decode()}")
+            sys.exit(1)
+
+        alias = out.decode().split("=")[-1].replace(":", "").lower()
+        cmd = " ".join([
+            "keytool -import -trustcacerts",
+            f"-alias {alias}",
+            "-keystore /opt/opendj/config/ads-truststore",
+            "-storepass:file /opt/opendj/config/ads-truststore.pin",
+            "-keypass:file /opt/opendj/config/ads-truststore.pin",
+            "-file /opt/opendj/config/ads-cert.crt",
+            "-noprompt",
+        ])
+        out, err, code = exec_cmd(cmd)
+        if code != 0:
+            err = err or out
+            logger.error(f"Unable to add new cert; reason={err.decode()}")
+            sys.exit(1)
+
+    delete_instance_key()
+    time.sleep(2)
+    recreate_ads_truststore()
+    add_new_cert()
+
+
+def modify_admin_keystore():
+    def export_admin_certificate():
+        cmd = " ".join([
+            "keytool -export",
+            "-alias admin-cert",
+            "-keystore /opt/opendj/config/admin-keystore",
+            "-storepass:file /opt/opendj/config/admin-keystore.pin",
+            "-keypass:file /opt/opendj/config/admin-keystore.pin",
+            "-file /opt/opendj/config/admin-cert.crt",
+            "-rfc",
+        ])
+        out, err, code = exec_cmd(cmd)
+        if code != 0:
+            err = err or out
+            logger.error(f"Unable to export admin-cert; reason={err.decode()}")
+            sys.exit(1)
+
+    def recreate_admin_keystore():
+        os.unlink("/opt/opendj/config/admin-keystore")
+
+        addr = guess_serf_addr().split(":")[0]
+        hostname = socket.getfqdn()
+
+        cmd = " ".join([
+            "keytool -genkeypair",
+            "-alias admin-cert",
+            "-keyalg RSA",
+            "-validity 365",
+            "-keysize 2048",
+            "-storetype JKS",
+            "-keystore /opt/opendj/config/admin-keystore",
+            "-storepass:file /opt/opendj/config/admin-keystore.pin",
+            "-keypass:file /opt/opendj/config/admin-keystore.pin",
+            f"-dname 'CN={addr}, O=Administration Connector RSA Self-Signed Certificate'",
+            f"-ext san=dns:{hostname},dns:{addr}",
+        ])
+        out, err, code = exec_cmd(cmd)
+        if code != 0:
+            err = err or out
+            logger.error(f"Unable to create admin-keystore; reason={err.decode()}")
+            sys.exit(1)
+
+    def recreate_admin_truststore():
+        export_admin_certificate()
+
+        os.unlink("/opt/opendj/config/admin-truststore")
+
+        cmd = " ".join([
+            "keytool -import -trustcacerts",
+            "-alias admin-cert",
+            "-keystore /opt/opendj/config/admin-truststore",
+            "-storepass:file /opt/opendj/config/admin-keystore.pin",
+            "-keypass:file /opt/opendj/config/admin-keystore.pin",
+            "-file /opt/opendj/config/admin-cert.crt",
+            "-noprompt",
+        ])
+        out, err, code = exec_cmd(cmd)
+        if code != 0:
+            err = err or out
+            logger.error(f"Unable to add new cert; reason={err.decode()}")
+            sys.exit(1)
+
+    recreate_admin_keystore()
+    recreate_admin_truststore()
 
 
 if __name__ == "__main__":
