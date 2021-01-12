@@ -11,7 +11,7 @@ RUN mkdir -p /usr/lib/jvm/default-jvm /usr/java/latest \
 
 RUN apk update \
     && apk add --no-cache openssl py3-pip tini curl \
-    && apk add --no-cache --virtual build-deps wget git
+    && apk add --no-cache --virtual build-deps wget git gcc musl-dev python3-dev libffi-dev openssl-dev
 
 # ======
 # OpenDJ
@@ -41,7 +41,6 @@ RUN wget -q https://releases.hashicorp.com/serf/${SERF_VERSION}/serf_${SERF_VERS
 # Python
 # ======
 
-RUN apk add --no-cache py3-cryptography
 COPY requirements.txt /app/requirements.txt
 RUN pip3 install -U pip \
     && pip3 install -r /app/requirements.txt --no-cache-dir \
