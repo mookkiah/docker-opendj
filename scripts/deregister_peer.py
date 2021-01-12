@@ -1,13 +1,14 @@
 import contextlib
-import json
+# import json
 import logging.config
 import os
-import socket
 
 from pygluu.containerlib import get_manager
 from pygluu.containerlib.utils import exec_cmd
 
 from settings import LOGGING_CONFIG
+from utils import deregister_serf_peer
+from utils import guess_serf_addr
 
 DEFAULT_ADMIN_PW_PATH = "/opt/opendj/.pw"
 
@@ -31,33 +32,21 @@ def admin_password_bound(manager, password_file=DEFAULT_ADMIN_PW_PATH):
             os.unlink(password_file)
 
 
-def get_ldap_peers(manager):
-    return json.loads(manager.config.get("ldap_peers", "[]"))
-
-
-def deregister_ldap_peer(manager, hostname):
-    peers = set(get_ldap_peers(manager))
-
-    try:
-        peers.remove(hostname)
-        manager.config.set("ldap_peers", list(peers))
-    except KeyError:
-        pass
-
-
 def main():
     manager = get_manager()
-    server = socket.getfqdn()
+    addr = guess_serf_addr()
+    host = addr.split(":")[0]
+    admin_port = os.environ.get("GLUU_LDAP_ADVERTISE_ADMIN_PORT", "4444")
 
-    deregister_ldap_peer(manager, server)
+    deregister_serf_peer(manager, addr)
 
     with admin_password_bound(manager) as password_file:
         cmd = " ".join([
             "/opt/opendj/bin/dsreplication",
             "disable",
             "--disableAll",
-            "--port 4444",
-            f"--hostname {server}",
+            f"--port {admin_port}",
+            f"--hostname {host}",
             "--adminUID admin",
             f"--adminPasswordFile {password_file}",
             "-X",
