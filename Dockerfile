@@ -122,8 +122,8 @@ ENV CN_LDAP_AUTO_REPLICATE=true \
     CN_JAVA_OPTIONS="" \
     CN_SERF_PROFILE=lan \
     CN_SERF_LOG_LEVEL=warn \
-    GLUU_SERF_ADVERTISE_ADDR="" \
-    GLUU_SERF_KEY_FILE=/etc/jans/conf/serf-key \
+    CN_SERF_ADVERTISE_ADDR="" \
+    CN_SERF_KEY_FILE=/etc/jans/conf/serf-key \
     CN_PERSISTENCE_TYPE=ldap \
     CN_PERSISTENCE_LDAP_MAPPING=default
 
