@@ -69,7 +69,7 @@ def install_opendj():
         ),
         "--doNotStart",
     ])
-    out, err, code = exec_cmd(cmd)
+    out, err, code = execute_command(cmd)
     if code and err:
         logger.warning(err.decode())
 
@@ -86,7 +86,7 @@ def install_opendj():
 
 
 def run_dsjavaproperties():
-    _, err, code = exec_cmd("/opt/opendj/bin/dsjavaproperties")
+    _, err, code = execute_command("/opt/opendj/bin/dsjavaproperties")
     if code and err:
         logger.warning(err.decode())
 
@@ -103,6 +103,11 @@ def sync_ldap_certs():
     manager.secret.to_file("ldap_ssl_key", "/etc/certs/opendj.key", decode=True)
     manager.secret.to_file("ldap_ssl_cacert", "/etc/certs/opendj.pem", decode=True)
 
+def execute_command(cmd):
+    logger.info(cmd)
+    out, err, code = exec_cmd(cmd)
+    return out.strip(), err.strip(), code
+
 
 @contextmanager
 def ds_context():
@@ -113,18 +118,18 @@ def ds_context():
         manager.config.get("ldap_binddn"),
         DEFAULT_ADMIN_PW_PATH,
     )
-    out, _, code = exec_cmd(cmd)
+    out, _, code = execute_command(cmd)
     running = out.decode().startswith("Unable to connect to the server")
 
     if not running:
-        exec_cmd("/opt/opendj/bin/start-ds")
+        execute_command("/opt/opendj/bin/start-ds")
 
     try:
         yield
     except Exception:
         raise
     finally:
-        exec_cmd("/opt/opendj/bin/stop-ds --quiet")
+        execute_command("/opt/opendj/bin/stop-ds --quiet")
 
 
 def run_upgrade():
@@ -144,12 +149,12 @@ def run_upgrade():
                 logger.info("Trying to upgrade OpenDJ server")
 
                 # backup old buildinfo
-                exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{}".format(old_buildinfo))
-                _, err, retcode = exec_cmd("/opt/opendj/upgrade --acceptLicense")
+                execute_command("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{}".format(old_buildinfo))
+                _, err, retcode = execute_command("/opt/opendj/upgrade --acceptLicense")
                 assert retcode == 0, "Failed to upgrade OpenDJ; reason={}".format(err.decode())
 
                 # backup current buildinfo
-                exec_cmd("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{}".format(buildinfo))
+                execute_command("cp /opt/opendj/config/buildinfo /opt/opendj/config/buildinfo-{}".format(buildinfo))
 
 
 def require_site():
@@ -265,19 +270,19 @@ def regenerate_ldap_certs():
     email = manager.config.get("admin_email")
 
     # create key with password
-    _, err, retcode = exec_cmd(
+    _, err, retcode = execute_command(
         "openssl genrsa -des3 -out /etc/certs/{}.key.orig "
         "-passout pass:'{}' 2048".format(suffix, passwd))
     assert retcode == 0, "Failed to generate SSL key with password; reason={}".format(err.decode())
 
     # create .key
-    _, err, retcode = exec_cmd(
+    _, err, retcode = execute_command(
         "openssl rsa -in /etc/certs/{0}.key.orig "
         "-passin pass:'{1}' -out /etc/certs/{0}.key".format(suffix, passwd))
     assert retcode == 0, "Failed to generate SSL key; reason={}".format(err.decode())
 
     # create .csr
-    _, err, retcode = exec_cmd(
+    _, err, retcode = execute_command(
         "openssl req -new -key /etc/certs/{0}.key "
         "-out /etc/certs/{0}.csr "
         "-config /etc/ssl/san.cnf "
@@ -285,7 +290,7 @@ def regenerate_ldap_certs():
     assert retcode == 0, "Failed to generate SSL CSR; reason={}".format(err.decode())
 
     # create .crt
-    _, err, retcode = exec_cmd(
+    _, err, retcode = execute_command(
         "openssl x509 -req -days 365 -in /etc/certs/{0}.csr "
         "-extensions v3_req -extfile /etc/ssl/san.cnf "
         "-signkey /etc/certs/{0}.key -out /etc/certs/{0}.crt".format(suffix))
@@ -318,7 +323,7 @@ def regenerate_ldap_pkcs12():
         "-name {}".format(hostname),
         "-passout pass:{}".format(passwd),
     ])
-    _, err, retcode = exec_cmd(cmd)
+    _, err, retcode = execute_command(cmd)
     assert retcode == 0, "Failed to generate PKCS12 file; reason={}".format(err.decode())
 
 
@@ -400,7 +405,7 @@ def resolve_serf_key():
 
         logger.info("Loading Serf key from serf keygen command")
 
-        out, err, code = exec_cmd("serf keygen")
+        out, err, code = execute_command("serf keygen")
         if code != 0:
             logger.warning(f"Unable to self-generate Serf key; reason={err.decode()}")
             return keygen
@@ -516,7 +521,7 @@ def create_backends():
             f"--bindPasswordFile {DEFAULT_ADMIN_PW_PATH}",
             mod,
         ])
-        _, err, code = exec_cmd(cmd)
+        _, err, code = execute_command(cmd)
         if code:
             logger.warning(err.decode())
             sys.exit(1)
@@ -617,7 +622,7 @@ def modify_ads_truststore():
             "-file /opt/opendj/config/ads-cert.crt",
             "-rfc",
         ])
-        out, err, code = exec_cmd(cmd)
+        out, err, code = execute_command(cmd)
         if code != 0:
             err = err or out
             logger.error(f"Unable to export ads-certificate; reason={err.decode()}")
@@ -627,7 +632,7 @@ def modify_ads_truststore():
         export_ads_certificate()
 
         cmd = "openssl x509 -fingerprint -md5 -noout -in /opt/opendj/config/ads-cert.crt"
-        out, err, code = exec_cmd(cmd)
+        out, err, code = execute_command(cmd)
         if code != 0:
             err = err or out
             logger.error(f"Unable to get ads-cert fingerprint; reason={err.decode()}")
@@ -668,7 +673,7 @@ def modify_ads_truststore():
             f"-dname 'CN={addr}, O=OpenDJ RSA Certificate'",
             f"-ext san=dns:{hostname},dns:{addr}",
         ])
-        out, err, code = exec_cmd(cmd)
+        out, err, code = execute_command(cmd)
         if code != 0:
             err = err or out
             logger.error(f"Unable to create ads-truststore; reason={err.decode()}")
@@ -678,7 +683,7 @@ def modify_ads_truststore():
         export_ads_certificate()
 
         cmd = "openssl x509 -fingerprint -md5 -noout -in /opt/opendj/config/ads-cert.crt"
-        out, err, code = exec_cmd(cmd)
+        out, err, code = execute_command(cmd)
         if code != 0:
             err = err or out
             logger.error(f"Unable to get ads-cert fingerprint; reason={err.decode()}")
@@ -694,7 +699,7 @@ def modify_ads_truststore():
             "-file /opt/opendj/config/ads-cert.crt",
             "-noprompt",
         ])
-        out, err, code = exec_cmd(cmd)
+        out, err, code = execute_command(cmd)
         if code != 0:
             err = err or out
             logger.error(f"Unable to add new cert; reason={err.decode()}")
@@ -717,7 +722,7 @@ def modify_admin_keystore():
             "-file /opt/opendj/config/admin-cert.crt",
             "-rfc",
         ])
-        out, err, code = exec_cmd(cmd)
+        out, err, code = execute_command(cmd)
         if code != 0:
             err = err or out
             logger.error(f"Unable to export admin-cert; reason={err.decode()}")
@@ -742,7 +747,7 @@ def modify_admin_keystore():
             f"-dname 'CN={addr}, O=Administration Connector RSA Self-Signed Certificate'",
             f"-ext san=dns:{hostname},dns:{addr}",
         ])
-        out, err, code = exec_cmd(cmd)
+        out, err, code = execute_command(cmd)
         if code != 0:
             err = err or out
             logger.error(f"Unable to create admin-keystore; reason={err.decode()}")
@@ -762,7 +767,7 @@ def modify_admin_keystore():
             "-file /opt/opendj/config/admin-cert.crt",
             "-noprompt",
         ])
-        out, err, code = exec_cmd(cmd)
+        out, err, code = execute_command(cmd)
         if code != 0:
             err = err or out
             logger.error(f"Unable to add new cert; reason={err.decode()}")

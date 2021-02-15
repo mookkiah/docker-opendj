@@ -46,7 +46,7 @@ def replicate_from(peer, server, base_dn):
     with admin_password_bound(manager) as password_file:
         # enable replication for specific backend
         logger.info(f"Enabling OpenDJ replication of {base_dn} between {peer['name']} and {server['name']}.")
-
+        exec_cmd(f"cat {password_file}")
         enable_cmd = " ".join([
             "/opt/opendj/bin/dsreplication",
             "enable",
@@ -69,8 +69,9 @@ def replicate_from(peer, server, base_dn):
             "-n",
             "-Q",
         ])
-        # logger.info(enable_cmd)
+        logger.info(enable_cmd)
         out, err, code = exec_cmd(enable_cmd)
+        logger.info(out)
         if code:
             err = err or out
             logger.warning(err.decode().strip())
@@ -92,12 +93,19 @@ def replicate_from(peer, server, base_dn):
             "-n",
             "-Q",
         ])
-        # logger.info(init_cmd)
+        logger.info(init_cmd)
         out, err, code = exec_cmd(init_cmd)
+        logger.info(out)
         if code:
             err = err or out
             logger.warning(err.decode().strip())
 
+def execute_command(cmd):
+    logger.info(cmd)
+    out, err, code = exec_cmd(cmd)
+    logger.info(out)
+    logger.info(err)
+    return out.strip(), err.strip(), code
 
 def check_required_entry(host, port, user, base_dn):
     """Checks if entry is exist.
@@ -123,14 +131,18 @@ def check_required_entry(host, port, user, base_dn):
             "--searchScope base",
             "'(objectClass=*)' 1.1",
         ])
+        logger.info(cmd)
         out, err, code = exec_cmd(cmd)
+        logger.info(out)
         return out.strip(), err.strip(), code
 
 
 def get_ldap_status(bind_dn):
     with admin_password_bound(manager) as password_file:
         cmd = f"/opt/opendj/bin/status -D '{bind_dn}' --bindPasswordFile {password_file} --connectTimeout 10000 -X"
+        logger.info(cmd)
         out, err, code = exec_cmd(cmd)
+        logger.info(out)
         return out.strip(), err.strip(), code
 
 
@@ -233,7 +245,10 @@ def get_repl_max_retries():
 
 
 def peers_from_serf_membership():
-    out, err, code = exec_cmd("serf members -tag role=ldap -status=alive -format json")
+    cmd = "serf members -tag role=ldap -status=alive -format json"
+    logger.info(cmd)
+    out, err, code = exec_cmd(cmd)
+    logger.info(out)
     if code != 0:
         err = err or out
         logger.warning(f"Unable to get peers; reason={err.decode()}")
@@ -253,12 +268,17 @@ def peers_from_serf_membership():
 def get_server_info():
     server = {}
     attempt = 1
+    with admin_password_bound(manager) as password_file:
+        password = exec_cmd(f"cat {password_file}")
+        logger.info(f"password file {password_file} :content: {password}")
 
     logger.info("Getting current server info")
 
     while attempt <= 3:
-        out, err, code = exec_cmd("serf info -format json")
-
+        cmd = "serf info -format json"
+        logger.info(cmd)
+        out, err, code = exec_cmd(cmd)
+        logger.info(out)
         if code != 0:
             err = err or out
             logger.warning(f"Unable to get current server info from Serf; reason={err.decode()} ... retrying in 10 seconds")
@@ -287,6 +307,7 @@ def get_server_info():
 
 
 def main():
+    get_server_info()
     auto_repl = as_boolean(os.environ.get("GLUU_LDAP_AUTO_REPLICATE", True))
     if not auto_repl:
         logger.warning("Auto replication is disabled; skipping replication check")
@@ -303,9 +324,12 @@ def main():
         logger.info(f"Checking replicated backends (attempt {retry + 1})")
 
         peers = peers_from_serf_membership()
-
+        
+        logger.info(f"server {server} ")
         for peer in peers:
+            logger.info(f"peer {peer} ")
             if peer["name"] == server["name"]:
+                logger.info("Continuing as replication source and self are same")
                 continue
 
             datasources = get_datasources(ldap_user, interval)

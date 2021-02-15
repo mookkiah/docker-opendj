@@ -43,12 +43,12 @@ def main():
         return
 
     # join Serf cluster manually
-    peers = " ".join(get_serf_peers(manager))
-    out, err, code = exec_cmd(f"serf join {peers}")
-    err = err or out
-
-    if code != 0:
-        logger.warning(f"Unable to join Serf cluster; reason={err}")
+    for peer in get_serf_peers(manager):
+        logger.info(f"Executing serf join {peer}")
+        out, err, code = exec_cmd(f"serf join {peer}")
+        err = err or out
+        if code != 0:
+            logger.warning(f"Unable to join Serf cluster; reason={err}")
 
 
 if __name__ == "__main__":
